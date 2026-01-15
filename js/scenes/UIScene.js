@@ -2,6 +2,7 @@
 
 import { STARTING_RESOURCES, GAME_CONFIG, UI, BUILDING, FACTION_COLORS } from '../utils/Constants.js';
 import Goose from '../entities/Goose.js';
+import { createStyledButton } from '../ui/StyledButton.js';
 
 export default class UIScene extends Phaser.Scene {
   constructor() {
@@ -230,62 +231,13 @@ export default class UIScene extends Phaser.Scene {
 
     const button = {};
 
-    // Button background
-    const bgColor = isUnlocked ? 0x4CAF50 : 0x555555;
-    button.bg = this.add.rectangle(x, y, btnWidth, btnHeight, bgColor, 1);
-    button.bg.setOrigin(0, 0);
-    button.bg.setDepth(1001);
-
-    if (isUnlocked) {
-      button.bg.setInteractive({ useHandCursor: true });
-    }
-
-    // Icon
-    button.icon = this.add.text(x + 5, y + 10, icon, {
-      fontSize: '20px'
-    }).setDepth(1002);
-
-    // Label
-    button.label = this.add.text(x + 35, y + 5, label, {
-      fontSize: '14px',
-      fill: isUnlocked ? '#ffffff' : '#999999',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setDepth(1002);
-
-    // Cost display
-    const costText = this.formatCost(cost);
-    button.cost = this.add.text(x + 35, y + 25, costText, {
-      fontSize: '11px',
-      fill: isUnlocked ? '#dddddd' : '#777777',
-      fontFamily: 'Arial'
-    }).setDepth(1002);
-
-    // Unlock message for locked buildings
-    if (!isUnlocked && unlockMessage) {
-      button.locked = this.add.text(x + 35, y + 40, unlockMessage, {
-        fontSize: '10px',
-        fill: '#ff6666',
-        fontFamily: 'Arial'
-      }).setDepth(1002);
-    }
-
-    // Hover effects (only for unlocked)
-    if (isUnlocked) {
-      button.bg.on('pointerover', () => {
-        button.bg.setFillStyle(0x66BB6A);
-        // Show tooltip with full building description
-        const building = BUILDING[buildingType];
-        if (building && building.description) {
-          const tooltipText = `${building.displayName}\n\n${building.description}\n\nCost: ${this.formatCost(building.cost)}`;
-          this.showTooltip(x + 210, y, tooltipText);
-        }
-      });
-      button.bg.on('pointerout', () => {
-        button.bg.setFillStyle(0x4CAF50);
-        this.hideTooltip();
-      });
-      button.bg.on('pointerdown', () => {
+    // Create styled button using utility
+    const buttonContainer = createStyledButton(
+      this,
+      x + btnWidth / 2,
+      y + btnHeight / 2,
+      '', // No text, we'll add custom content
+      isUnlocked ? () => {
         console.log(`Build: ${label}`);
         this.hideTooltip();
         // Trigger building placement in GameScene
@@ -293,6 +245,72 @@ export default class UIScene extends Phaser.Scene {
         if (gameScene && gameScene.buildingManager) {
           gameScene.buildingManager.startPlacement(buildingType);
         }
+      } : null,
+      {
+        width: btnWidth,
+        height: btnHeight,
+        cornerRadius: 12,
+        fontSize: '14px',
+        disabled: !isUnlocked
+      }
+    );
+    buttonContainer.setDepth(1001);
+
+    // Remove default button text (we'll add custom layout)
+    if (buttonContainer.buttonText) {
+      buttonContainer.buttonText.destroy();
+    }
+
+    button.bg = buttonContainer;
+
+    // Icon
+    button.icon = this.add.text(x + 5, y + btnHeight / 2 - 10, icon, {
+      fontSize: '20px'
+    }).setDepth(1002);
+
+    // Label
+    button.label = this.add.text(x + 35, y + 8, label, {
+      fontSize: '14px',
+      fill: isUnlocked ? '#ffffff' : '#999999',
+      fontFamily: 'Arial',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setDepth(1002);
+
+    // Cost display
+    const costText = this.formatCost(cost);
+    button.cost = this.add.text(x + 35, y + 28, costText, {
+      fontSize: '11px',
+      fill: isUnlocked ? '#ffffff' : '#999999',
+      fontFamily: 'Arial',
+      stroke: '#000000',
+      strokeThickness: 2
+    }).setDepth(1002);
+
+    // Unlock message for locked buildings
+    if (!isUnlocked && unlockMessage) {
+      button.locked = this.add.text(x + 35, y + 43, unlockMessage, {
+        fontSize: '9px',
+        fill: '#ff9999',
+        fontFamily: 'Arial',
+        stroke: '#000000',
+        strokeThickness: 2
+      }).setDepth(1002);
+    }
+
+    // Add tooltip on hover (only for unlocked)
+    if (isUnlocked) {
+      buttonContainer.on('pointerover', () => {
+        // Show tooltip with full building description
+        const building = BUILDING[buildingType];
+        if (building && building.description) {
+          const tooltipText = `${building.displayName}\n\n${building.description}\n\nCost: ${this.formatCost(building.cost)}`;
+          this.showTooltip(x + 210, y, tooltipText);
+        }
+      });
+      buttonContainer.on('pointerout', () => {
+        this.hideTooltip();
       });
     }
 
@@ -701,9 +719,26 @@ export default class UIScene extends Phaser.Scene {
     const btnWidth = 230;
     const btnHeight = 45;
 
-    const bg = this.add.rectangle(x, y, btnWidth, btnHeight, 0x4CAF50, 1);
-    bg.setOrigin(0, 0);
-    bg.setInteractive({ useHandCursor: true });
+    // Create styled button
+    const bg = createStyledButton(
+      this,
+      x + btnWidth / 2,
+      y + btnHeight / 2,
+      '', // No text, we'll add custom content
+      onClick,
+      {
+        width: btnWidth,
+        height: btnHeight,
+        cornerRadius: 10,
+        fontSize: '14px',
+        disabled: false
+      }
+    );
+
+    // Remove default button text
+    if (bg.buttonText) {
+      bg.buttonText.destroy();
+    }
 
     // Choose icon based on label
     let iconEmoji = '👷';
@@ -711,7 +746,7 @@ export default class UIScene extends Phaser.Scene {
     else if (label.includes('Scout')) iconEmoji = '🏹';
     else if (label.includes('Honker')) iconEmoji = '💥';
 
-    const icon = this.add.text(x + 5, y + 12, iconEmoji, {
+    const icon = this.add.text(x + 5, y + btnHeight / 2 - 10, iconEmoji, {
       fontSize: '20px'
     });
 
@@ -719,20 +754,17 @@ export default class UIScene extends Phaser.Scene {
       fontSize: '14px',
       fill: '#ffffff',
       fontFamily: 'Arial',
-      fontStyle: 'bold'
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3
     });
 
     const costText = this.add.text(x + 35, y + 26, cost, {
       fontSize: '11px',
-      fill: '#dddddd',
-      fontFamily: 'Arial'
-    });
-
-    bg.on('pointerover', () => bg.setFillStyle(0x66BB6A));
-    bg.on('pointerout', () => bg.setFillStyle(0x4CAF50));
-    bg.on('pointerdown', () => {
-      bg.setFillStyle(0x388E3C);
-      onClick();
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      stroke: '#000000',
+      strokeThickness: 2
     });
 
     return { bg, icon, label: labelText, cost: costText };

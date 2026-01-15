@@ -16,6 +16,9 @@ export default class BootScene extends Phaser.Scene {
       this.loadErrors.push({ type: file.type, key: file.key, url: file.url });
     });
 
+    // Load menu background
+    this.load.image('menu-background', 'assets/menu_background.png');
+
     // Load terrain tiles
     this.load.image('ground', 'assets/terrain/ground.png');
     this.load.image('dirt', 'assets/terrain/dirt.png');

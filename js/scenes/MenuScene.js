@@ -15,25 +15,9 @@ export default class MenuScene extends Phaser.Scene {
     this.soundManager = new SoundManager(this);
     this.musicStarted = false;
 
-    // Background
-    this.add.rectangle(0, 0, width, height, 0x1a3a1a).setOrigin(0);
-
-    // Title
-    const title = this.add.text(width / 2, height / 3, 'GooseCraft', {
-      fontSize: '72px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    });
-    title.setOrigin(0.5);
-
-    // Subtitle
-    const subtitle = this.add.text(width / 2, height / 3 + 70, 'Isometric RTS', {
-      fontSize: '24px',
-      fill: '#aaaaaa',
-      fontFamily: 'Arial'
-    });
-    subtitle.setOrigin(0.5);
+    // Background image (contains title)
+    const bg = this.add.image(width / 2, height / 2, 'menu-background');
+    bg.setDisplaySize(width, height);
 
     // New Game Button
     const newGameButton = this.createButton(
@@ -66,42 +50,120 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   createButton(x, y, text, onClick, disabled = false) {
-    // Button background
-    const bg = this.add.rectangle(x, y, 300, 50, disabled ? 0x555555 : 0x4CAF50);
-    bg.setStrokeStyle(2, 0xffffff);
+    const buttonWidth = 400;
+    const buttonHeight = 80;
+    const cornerRadius = 20;
 
-    // Button text
-    const buttonText = this.add.text(x, y, text, {
-      fontSize: '20px',
-      fill: disabled ? '#999999' : '#ffffff',
-      fontFamily: 'Arial'
+    // Create container for all button elements
+    const container = this.add.container(x, y);
+
+    // Outer border (brown/tan)
+    const outerBorder = this.add.graphics();
+    outerBorder.fillStyle(disabled ? 0x555555 : 0xB8956A, 1);
+    outerBorder.fillRoundedRect(-buttonWidth / 2, -buttonHeight / 2, buttonWidth, buttonHeight, cornerRadius);
+    container.add(outerBorder);
+
+    // Inner border (darker brown)
+    const innerBorder = this.add.graphics();
+    const borderThickness = 8;
+    innerBorder.fillStyle(disabled ? 0x333333 : 0x6B4423, 1);
+    innerBorder.fillRoundedRect(
+      -buttonWidth / 2 + borderThickness,
+      -buttonHeight / 2 + borderThickness,
+      buttonWidth - borderThickness * 2,
+      buttonHeight - borderThickness * 2,
+      cornerRadius - 4
+    );
+    container.add(innerBorder);
+
+    // Green fill
+    const fillGraphics = this.add.graphics();
+    const fillPadding = 14;
+    fillGraphics.fillStyle(disabled ? 0x666666 : 0x6BA965, 1);
+    fillGraphics.fillRoundedRect(
+      -buttonWidth / 2 + fillPadding,
+      -buttonHeight / 2 + fillPadding,
+      buttonWidth - fillPadding * 2,
+      buttonHeight - fillPadding * 2,
+      cornerRadius - 8
+    );
+    container.add(fillGraphics);
+
+    // Button text with stroke
+    const buttonText = this.add.text(0, 0, text, {
+      fontSize: '32px',
+      fill: disabled ? '#999999' : '#FFFFFF',
+      fontFamily: 'Arial',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 6
     });
     buttonText.setOrigin(0.5);
+    container.add(buttonText);
 
     if (!disabled && onClick) {
-      // Make interactive
-      bg.setInteractive({ useHandCursor: true });
+      // Create invisible interactive area
+      const hitArea = this.add.rectangle(0, 0, buttonWidth, buttonHeight, 0xffffff, 0);
+      hitArea.setInteractive({ useHandCursor: true });
+      container.add(hitArea);
+
+      // Store original colors
+      const normalFill = 0x6BA965;
+      const hoverFill = 0x7DBB77;
+      const pressFill = 0x5A8E55;
 
       // Hover effects
-      bg.on('pointerover', () => {
-        bg.setFillStyle(0x66BB6A);
+      hitArea.on('pointerover', () => {
+        fillGraphics.clear();
+        fillGraphics.fillStyle(hoverFill, 1);
+        fillGraphics.fillRoundedRect(
+          -buttonWidth / 2 + fillPadding,
+          -buttonHeight / 2 + fillPadding,
+          buttonWidth - fillPadding * 2,
+          buttonHeight - fillPadding * 2,
+          cornerRadius - 8
+        );
       });
 
-      bg.on('pointerout', () => {
-        bg.setFillStyle(0x4CAF50);
+      hitArea.on('pointerout', () => {
+        fillGraphics.clear();
+        fillGraphics.fillStyle(normalFill, 1);
+        fillGraphics.fillRoundedRect(
+          -buttonWidth / 2 + fillPadding,
+          -buttonHeight / 2 + fillPadding,
+          buttonWidth - fillPadding * 2,
+          buttonHeight - fillPadding * 2,
+          cornerRadius - 8
+        );
       });
 
-      bg.on('pointerdown', () => {
-        bg.setFillStyle(0x388E3C);
+      hitArea.on('pointerdown', () => {
+        fillGraphics.clear();
+        fillGraphics.fillStyle(pressFill, 1);
+        fillGraphics.fillRoundedRect(
+          -buttonWidth / 2 + fillPadding,
+          -buttonHeight / 2 + fillPadding,
+          buttonWidth - fillPadding * 2,
+          buttonHeight - fillPadding * 2,
+          cornerRadius - 8
+        );
       });
 
-      bg.on('pointerup', () => {
-        bg.setFillStyle(0x66BB6A);
+      hitArea.on('pointerup', () => {
+        fillGraphics.clear();
+        fillGraphics.fillStyle(hoverFill, 1);
+        fillGraphics.fillRoundedRect(
+          -buttonWidth / 2 + fillPadding,
+          -buttonHeight / 2 + fillPadding,
+          buttonWidth - fillPadding * 2,
+          buttonHeight - fillPadding * 2,
+          cornerRadius - 8
+        );
         onClick();
       });
     }
 
-    return { bg, text: buttonText };
+    return container;
   }
 
   startNewGame() {
