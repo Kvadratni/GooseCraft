@@ -993,7 +993,7 @@ export default class UIScene extends Phaser.Scene {
     musicLabel.setVisible(false);
 
     // Music volume value
-    const musicValue = this.add.text(panelX + panelWidth - 60, panelY + 90, '50%', {
+    const musicValue = this.add.text(panelX + panelWidth - 60, panelY + 90, '20%', {
       fontSize: '20px',
       fill: '#4CAF50',
       fontFamily: 'Arial'
@@ -1009,15 +1009,15 @@ export default class UIScene extends Phaser.Scene {
     musicSliderBg.setDepth(2001);
     musicSliderBg.setVisible(false);
 
-    // Music slider fill
-    const musicSliderFill = this.add.rectangle(panelX + (panelWidth / 2) - 150, panelY + 130, 150, 20, 0x4CAF50);
+    // Music slider fill (20% = 60px of 300px)
+    const musicSliderFill = this.add.rectangle(panelX + (panelWidth / 2) - 150, panelY + 130, 60, 20, 0x4CAF50);
     musicSliderFill.setOrigin(0, 0.5);
     musicSliderFill.setScrollFactor(0);
     musicSliderFill.setDepth(2002);
     musicSliderFill.setVisible(false);
 
-    // Music slider handle
-    const musicHandle = this.add.circle(panelX + panelWidth / 2, panelY + 130, 12, 0xFFFFFF);
+    // Music slider handle (20% = -150 + 60)
+    const musicHandle = this.add.circle(panelX + panelWidth / 2 - 90, panelY + 130, 12, 0xFFFFFF);
     musicHandle.setScrollFactor(0);
     musicHandle.setDepth(2003);
     musicHandle.setVisible(false);

@@ -5,7 +5,7 @@ export default class SoundManager {
     this.scene = scene;
 
     // Load saved volume settings from localStorage
-    this.musicVolume = this.loadVolumeSetting('musicVolume', 0.5); // Default 50%
+    this.musicVolume = this.loadVolumeSetting('musicVolume', 0.2); // Default 20%
     this.sfxVolume = this.loadVolumeSetting('sfxVolume', 1.0); // Default 100%
 
     // Music tracks

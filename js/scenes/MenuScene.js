@@ -11,9 +11,9 @@ export default class MenuScene extends Phaser.Scene {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
 
-    // Initialize sound manager and play menu music
+    // Initialize sound manager (don't play music yet due to browser autoplay restrictions)
     this.soundManager = new SoundManager(this);
-    this.soundManager.playMusic('music-menu', true);
+    this.musicStarted = false;
 
     // Background
     this.add.rectangle(0, 0, width, height, 0x1a3a1a).setOrigin(0);
@@ -107,15 +107,27 @@ export default class MenuScene extends Phaser.Scene {
   startNewGame() {
     console.log('MenuScene: Starting new game...');
 
-    // Stop menu music
-    if (this.soundManager) {
-      this.soundManager.stopMusic(true);
+    // Start menu music on first user interaction (if not already started)
+    if (!this.musicStarted && this.soundManager) {
+      this.soundManager.playMusic('music-menu', false);
+      this.musicStarted = true;
+    }
+
+    // Stop menu music before transitioning
+    if (this.soundManager && this.soundManager.currentMusic) {
+      this.soundManager.stopMusic(false); // Immediate stop, no fade
     }
 
     // Fade out
     this.cameras.main.fadeOut(500, 0, 0, 0);
 
     this.cameras.main.once('camerafadeoutcomplete', () => {
+      // Destroy sound manager to ensure clean transition
+      if (this.soundManager) {
+        this.soundManager.destroy();
+        this.soundManager = null;
+      }
+
       // Stop this scene and start GameScene
       this.scene.stop('MenuScene');
       this.scene.start('GameScene');
