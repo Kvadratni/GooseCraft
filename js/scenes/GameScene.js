@@ -1,6 +1,6 @@
 // Game Scene - Main Gameplay
 
-import { CAMERA, MAP, TILE, FACTIONS } from '../utils/Constants.js';
+import { CAMERA, MAP, TILE, FACTIONS, DEPTH } from '../utils/Constants.js';
 import IsometricMap from '../systems/IsometricMap.js';
 import PathfindingManager from '../systems/PathfindingManager.js';
 import SelectionManager from '../systems/SelectionManager.js';
