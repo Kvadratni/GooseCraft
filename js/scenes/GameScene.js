@@ -9,6 +9,7 @@ import BuildingManager from '../systems/BuildingManager.js';
 import BuildingUnlockManager from '../systems/BuildingUnlockManager.js';
 import AIManager from '../systems/AIManager.js';
 import FogOfWar from '../systems/FogOfWar.js';
+import SoundManager from '../systems/SoundManager.js';
 import SpatialHash from '../utils/SpatialHash.js';
 import Goose from '../entities/Goose.js';
 import ResourceNode from '../entities/ResourceNode.js';
@@ -32,6 +33,7 @@ export default class GameScene extends Phaser.Scene {
     this.buildingManager = new BuildingManager(this);
     this.aiManager = new AIManager(this);
     this.fogOfWar = new FogOfWar(this);
+    this.soundManager = new SoundManager(this);
 
     // Initialize spatial hash for efficient resource queries (cell size = 200px)
     this.resourceSpatialHash = new SpatialHash(200);
@@ -72,6 +74,9 @@ export default class GameScene extends Phaser.Scene {
 
     // Fade in
     this.cameras.main.fadeIn(500, 0, 0, 0);
+
+    // Start background music
+    this.soundManager.playMusic('music-game', true);
 
     console.log('GameScene: Ready');
   }
@@ -508,6 +513,9 @@ export default class GameScene extends Phaser.Scene {
 
       console.log(`GameScene: Gather command on ${clickedResource.getResourceType()}`);
 
+      // Play worker acknowledge sound
+      this.soundManager.playSFX('sfx-worker-acknowledge');
+
       // Visual feedback - show gather indicator
       this.showGatherIndicator(clickedResource.x, clickedResource.y);
     } else if (clickedBuilding && clickedBuilding.state === 'CONSTRUCTION') {
@@ -519,6 +527,9 @@ export default class GameScene extends Phaser.Scene {
       });
 
       console.log(`GameScene: Build command on ${clickedBuilding.buildingName}`);
+
+      // Play worker acknowledge sound
+      this.soundManager.playSFX('sfx-worker-acknowledge');
 
       // Visual feedback - show build indicator
       this.showBuildIndicator(clickedBuilding.x, clickedBuilding.y);
@@ -532,6 +543,9 @@ export default class GameScene extends Phaser.Scene {
       });
 
       console.log(`GameScene: Move command to (${Math.round(worldPos.x)}, ${Math.round(worldPos.y)})`);
+
+      // Play worker acknowledge sound
+      this.soundManager.playSFX('sfx-worker-acknowledge');
 
       // Visual feedback - show move indicator
       this.showMoveIndicator(worldPos.x, worldPos.y);

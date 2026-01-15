@@ -33,6 +33,7 @@ export default class UIScene extends Phaser.Scene {
     this.createMinimap();
     this.createBuildingPanel();
     this.createDebugToggle();
+    this.createSettingsPanel();
 
     // Update minimap after a short delay to ensure GameScene is ready
     this.time.delayedCall(500, () => {
@@ -930,5 +931,233 @@ export default class UIScene extends Phaser.Scene {
         gameScene.setDebugMode(this.debugMode);
       }
     });
+  }
+
+  /**
+   * Create settings panel for volume controls
+   */
+  createSettingsPanel() {
+    const width = this.cameras.main.width;
+    const height = this.cameras.main.height;
+
+    // Settings button (gear icon in top-right corner)
+    const settingsButton = this.add.text(width - 50, 10, '⚙️', {
+      fontSize: '32px',
+      padding: { x: 10, y: 10 }
+    });
+    settingsButton.setInteractive({ useHandCursor: true });
+    settingsButton.setScrollFactor(0);
+    settingsButton.setDepth(1000);
+
+    // Settings panel (hidden by default)
+    const panelWidth = 400;
+    const panelHeight = 300;
+    const panelX = width / 2 - panelWidth / 2;
+    const panelY = height / 2 - panelHeight / 2;
+
+    // Panel background
+    this.settingsPanel = this.add.rectangle(panelX + panelWidth / 2, panelY + panelHeight / 2, panelWidth, panelHeight, 0x1a1a1a, 0.95);
+    this.settingsPanel.setOrigin(0.5);
+    this.settingsPanel.setScrollFactor(0);
+    this.settingsPanel.setDepth(2000);
+    this.settingsPanel.setVisible(false);
+
+    // Panel border
+    const panelBorder = this.add.rectangle(panelX + panelWidth / 2, panelY + panelHeight / 2, panelWidth, panelHeight);
+    panelBorder.setStrokeStyle(2, 0x4CAF50);
+    panelBorder.setOrigin(0.5);
+    panelBorder.setScrollFactor(0);
+    panelBorder.setDepth(2000);
+    panelBorder.setVisible(false);
+
+    // Title
+    const titleText = this.add.text(panelX + panelWidth / 2, panelY + 30, 'Settings', {
+      fontSize: '32px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    });
+    titleText.setOrigin(0.5);
+    titleText.setScrollFactor(0);
+    titleText.setDepth(2001);
+    titleText.setVisible(false);
+
+    // Music volume label
+    const musicLabel = this.add.text(panelX + 40, panelY + 90, 'Music Volume:', {
+      fontSize: '20px',
+      fill: '#ffffff',
+      fontFamily: 'Arial'
+    });
+    musicLabel.setScrollFactor(0);
+    musicLabel.setDepth(2001);
+    musicLabel.setVisible(false);
+
+    // Music volume value
+    const musicValue = this.add.text(panelX + panelWidth - 60, panelY + 90, '50%', {
+      fontSize: '20px',
+      fill: '#4CAF50',
+      fontFamily: 'Arial'
+    });
+    musicValue.setOrigin(1, 0);
+    musicValue.setScrollFactor(0);
+    musicValue.setDepth(2001);
+    musicValue.setVisible(false);
+
+    // Music slider background
+    const musicSliderBg = this.add.rectangle(panelX + panelWidth / 2, panelY + 130, 300, 20, 0x333333);
+    musicSliderBg.setScrollFactor(0);
+    musicSliderBg.setDepth(2001);
+    musicSliderBg.setVisible(false);
+
+    // Music slider fill
+    const musicSliderFill = this.add.rectangle(panelX + (panelWidth / 2) - 150, panelY + 130, 150, 20, 0x4CAF50);
+    musicSliderFill.setOrigin(0, 0.5);
+    musicSliderFill.setScrollFactor(0);
+    musicSliderFill.setDepth(2002);
+    musicSliderFill.setVisible(false);
+
+    // Music slider handle
+    const musicHandle = this.add.circle(panelX + panelWidth / 2, panelY + 130, 12, 0xFFFFFF);
+    musicHandle.setScrollFactor(0);
+    musicHandle.setDepth(2003);
+    musicHandle.setVisible(false);
+    musicHandle.setInteractive({ useHandCursor: true, draggable: true });
+
+    // SFX volume label
+    const sfxLabel = this.add.text(panelX + 40, panelY + 180, 'SFX Volume:', {
+      fontSize: '20px',
+      fill: '#ffffff',
+      fontFamily: 'Arial'
+    });
+    sfxLabel.setScrollFactor(0);
+    sfxLabel.setDepth(2001);
+    sfxLabel.setVisible(false);
+
+    // SFX volume value
+    const sfxValue = this.add.text(panelX + panelWidth - 60, panelY + 180, '100%', {
+      fontSize: '20px',
+      fill: '#4CAF50',
+      fontFamily: 'Arial'
+    });
+    sfxValue.setOrigin(1, 0);
+    sfxValue.setScrollFactor(0);
+    sfxValue.setDepth(2001);
+    sfxValue.setVisible(false);
+
+    // SFX slider background
+    const sfxSliderBg = this.add.rectangle(panelX + panelWidth / 2, panelY + 220, 300, 20, 0x333333);
+    sfxSliderBg.setScrollFactor(0);
+    sfxSliderBg.setDepth(2001);
+    sfxSliderBg.setVisible(false);
+
+    // SFX slider fill
+    const sfxSliderFill = this.add.rectangle(panelX + (panelWidth / 2) - 150, panelY + 220, 300, 20, 0x4CAF50);
+    sfxSliderFill.setOrigin(0, 0.5);
+    sfxSliderFill.setScrollFactor(0);
+    sfxSliderFill.setDepth(2002);
+    sfxSliderFill.setVisible(false);
+
+    // SFX slider handle
+    const sfxHandle = this.add.circle(panelX + panelWidth / 2 + 150, panelY + 220, 12, 0xFFFFFF);
+    sfxHandle.setScrollFactor(0);
+    sfxHandle.setDepth(2003);
+    sfxHandle.setVisible(false);
+    sfxHandle.setInteractive({ useHandCursor: true, draggable: true });
+
+    // Close button
+    const closeButton = this.add.text(panelX + panelWidth / 2, panelY + 260, 'Close', {
+      fontSize: '20px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      backgroundColor: '#4CAF50',
+      padding: { x: 20, y: 10 }
+    });
+    closeButton.setOrigin(0.5);
+    closeButton.setScrollFactor(0);
+    closeButton.setDepth(2001);
+    closeButton.setVisible(false);
+    closeButton.setInteractive({ useHandCursor: true });
+
+    // Store all panel elements
+    this.settingsPanelElements = [
+      this.settingsPanel,
+      panelBorder,
+      titleText,
+      musicLabel,
+      musicValue,
+      musicSliderBg,
+      musicSliderFill,
+      musicHandle,
+      sfxLabel,
+      sfxValue,
+      sfxSliderBg,
+      sfxSliderFill,
+      sfxHandle,
+      closeButton
+    ];
+
+    // Get GameScene
+    const gameScene = this.scene.get('GameScene');
+
+    // Initialize slider positions from saved volumes
+    if (gameScene && gameScene.soundManager) {
+      const musicVol = gameScene.soundManager.getMusicVolume();
+      const sfxVol = gameScene.soundManager.getSFXVolume();
+
+      musicHandle.x = panelX + (panelWidth / 2) - 150 + (musicVol * 300);
+      musicSliderFill.width = musicVol * 300;
+      musicValue.setText(`${Math.round(musicVol * 100)}%`);
+
+      sfxHandle.x = panelX + (panelWidth / 2) - 150 + (sfxVol * 300);
+      sfxSliderFill.width = sfxVol * 300;
+      sfxValue.setText(`${Math.round(sfxVol * 100)}%`);
+    }
+
+    // Settings button click handler
+    settingsButton.on('pointerdown', () => {
+      const isVisible = !this.settingsPanel.visible;
+      this.settingsPanelElements.forEach(element => element.setVisible(isVisible));
+    });
+
+    // Close button click handler
+    closeButton.on('pointerdown', () => {
+      this.settingsPanelElements.forEach(element => element.setVisible(false));
+    });
+
+    // Music slider drag handler
+    musicHandle.on('drag', (pointer, dragX, dragY) => {
+      const minX = panelX + (panelWidth / 2) - 150;
+      const maxX = minX + 300;
+      const clampedX = Phaser.Math.Clamp(dragX, minX, maxX);
+
+      musicHandle.x = clampedX;
+      const volume = (clampedX - minX) / 300;
+      musicSliderFill.width = volume * 300;
+      musicValue.setText(`${Math.round(volume * 100)}%`);
+
+      // Update volume in sound manager
+      if (gameScene && gameScene.soundManager) {
+        gameScene.soundManager.setMusicVolume(volume);
+      }
+    });
+
+    // SFX slider drag handler
+    sfxHandle.on('drag', (pointer, dragX, dragY) => {
+      const minX = panelX + (panelWidth / 2) - 150;
+      const maxX = minX + 300;
+      const clampedX = Phaser.Math.Clamp(dragX, minX, maxX);
+
+      sfxHandle.x = clampedX;
+      const volume = (clampedX - minX) / 300;
+      sfxSliderFill.width = volume * 300;
+      sfxValue.setText(`${Math.round(volume * 100)}%`);
+
+      // Update volume in sound manager
+      if (gameScene && gameScene.soundManager) {
+        gameScene.soundManager.setSFXVolume(volume);
+      }
+    });
+
+    console.log('UIScene: Settings panel created');
   }
 }

@@ -55,6 +55,15 @@ export default class BootScene extends Phaser.Scene {
       frameHeight: 112
     });
 
+    // Load audio files
+    this.load.audio('music-game', 'assets/audio/goosecraftMenu.mp3');
+    this.load.audio('music-menu', 'assets/audio/Goosecraft_ Fields of Feathers.mp3');
+    this.load.audio('sfx-building-complete', 'assets/audio/building_complete.mp3');
+    this.load.audio('sfx-building-progress', 'assets/audio/building-in-progress.mp3');
+    this.load.audio('sfx-gather-sticks', 'assets/audio/gather-sticks.mp3');
+    this.load.audio('sfx-gather-water', 'assets/audio/gather-water.mp3');
+    this.load.audio('sfx-worker-acknowledge', 'assets/audio/worker-on_it.mp3');
+
     console.log('BootScene: Preloading assets...');
   }
 

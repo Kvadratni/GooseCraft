@@ -149,6 +149,16 @@ export default class Goose extends Unit {
         if (amountGathered > 0) {
           this.addToInventory(resourceType, amountGathered);
           console.log(`Goose: Gathered ${amountGathered} ${resourceType}, inventory: food=${this.inventory.food} water=${this.inventory.water} sticks=${this.inventory.sticks} tools=${this.inventory.tools}`);
+
+          // Play gathering sound effect
+          if (this.scene.soundManager) {
+            if (resourceType === 'sticks') {
+              this.scene.soundManager.playSFX('sfx-gather-sticks');
+            } else if (resourceType === 'water') {
+              this.scene.soundManager.playSFX('sfx-gather-water');
+            }
+            // Note: no specific sound for food gathering yet
+          }
         }
 
         this.gatherTimer = 0;

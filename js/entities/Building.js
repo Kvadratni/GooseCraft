@@ -188,6 +188,11 @@ export default class Building extends Phaser.GameObjects.Container {
 
     console.log(`Building: ${this.buildingName} construction complete!`);
 
+    // Play building complete sound
+    if (this.scene.soundManager && this.faction === FACTIONS.PLAYER) {
+      this.scene.soundManager.playSFX('sfx-building-complete');
+    }
+
     // Notify unlock manager for progression
     if (this.scene.buildingUnlockManager) {
       this.scene.buildingUnlockManager.onBuildingCompleted(this.buildingName);
