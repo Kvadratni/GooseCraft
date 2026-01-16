@@ -229,11 +229,11 @@ export default class Goose extends CombatUnit {
       this.x, this.y,
       this.homeBase.x, this.homeBase.y
     );
-    const depositRadius = 180; // Same as in returnToBase()
+    const depositRadius = 300; // Large radius for easy drop-off
 
     // If within deposit radius, deposit
     if (distance < depositRadius) {
-      console.log(`Goose: Within deposit radius (${Math.round(distance)}px < ${depositRadius}px) - depositing resources`);
+      if (window.gcVerbose) console.log(`Goose: Within deposit radius (${Math.round(distance)}px < ${depositRadius}px) - depositing resources`);
       this.depositResources();
 
       // Return to gathering if resource still available
@@ -371,11 +371,11 @@ export default class Goose extends CombatUnit {
     }
 
     const distance = Phaser.Math.Distance.Between(this.x, this.y, this.homeBase.x, this.homeBase.y);
-    const depositRadius = 180; // Increased radius for easier drop-off
+    const depositRadius = 300; // Large radius for easy drop-off
 
     if (distance < depositRadius) {
       // Within deposit radius, deposit immediately without pathfinding
-      console.log(`Goose: Within deposit radius (${Math.round(distance)}px < ${depositRadius}px), depositing`);
+      if (window.gcVerbose) console.log(`Goose: Within deposit radius (${Math.round(distance)}px < ${depositRadius}px), depositing`);
       this.depositResources();
 
       // Continue gathering if resource available
