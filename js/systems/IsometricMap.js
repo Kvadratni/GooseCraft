@@ -102,46 +102,58 @@ export default class IsometricMap {
       return 'water';  // River
     }
 
-    // Multiple small water lakes scattered around the map for easier water access
-    // Lake near player base (southwest)
+    // Multiple water lakes scattered around the map for easier water access
+    // Large lake near player base (southwest) - main water source
     const lake1Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.2, 2) + Math.pow(y - this.gridHeight * 0.2, 2));
-    if (lake1Dist < 5 && distFromBase > 12) {
+    if (lake1Dist < 7 && distFromBase > 10) {
       return 'water';
     }
 
-    // Lake in the northwest
+    // Large lake in the northwest
     const lake2Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.15, 2) + Math.pow(y - this.gridHeight * 0.6, 2));
-    if (lake2Dist < 4) {
+    if (lake2Dist < 6) {
       return 'water';
     }
 
     // Lake near AI base (northeast area)
     const lake3Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.8, 2) + Math.pow(y - this.gridHeight * 0.85, 2));
-    if (lake3Dist < 4 && distFromAIBase > 12) {
+    if (lake3Dist < 6 && distFromAIBase > 10) {
       return 'water';
     }
 
-    // Small pond in the east
+    // Medium pond in the east
     const lake4Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.9, 2) + Math.pow(y - this.gridHeight * 0.4, 2));
-    if (lake4Dist < 3) {
+    if (lake4Dist < 5) {
       return 'water';
     }
 
-    // Pond in the center-north
+    // Large pond in the center-north
     const lake5Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.5, 2) + Math.pow(y - this.gridHeight * 0.25, 2));
-    if (lake5Dist < 4) {
+    if (lake5Dist < 6) {
       return 'water';
     }
 
-    // Pond in the center-south
+    // Medium pond in the center-south
     const lake6Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.4, 2) + Math.pow(y - this.gridHeight * 0.75, 2));
-    if (lake6Dist < 3) {
+    if (lake6Dist < 5) {
       return 'water';
     }
 
-    // Small oasis near player start
-    const oasisDist = Math.sqrt(Math.pow(x - this.gridWidth * 0.4, 2) + Math.pow(y - this.gridHeight * 0.35, 2));
-    if (oasisDist < 3 && distFromBase > 8) {
+    // Oasis near player start - closer and larger
+    const oasisDist = Math.sqrt(Math.pow(x - this.gridWidth * 0.35, 2) + Math.pow(y - this.gridHeight * 0.3, 2));
+    if (oasisDist < 5 && distFromBase > 6) {
+      return 'water';
+    }
+
+    // Additional pond in southeast
+    const lake7Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.7, 2) + Math.pow(y - this.gridHeight * 0.5, 2));
+    if (lake7Dist < 4) {
+      return 'water';
+    }
+
+    // Additional pond near center
+    const lake8Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.55, 2) + Math.pow(y - this.gridHeight * 0.55, 2));
+    if (lake8Dist < 4) {
       return 'water';
     }
 

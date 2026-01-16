@@ -160,6 +160,9 @@ export default class BuildingManager {
       return false;
     }
 
+    // Track rock tiles for Mine placement
+    let rockTileCount = 0;
+
     // Check all footprint tiles
     for (const offset of config.footprint) {
       const tileX = gridX + offset[0];
@@ -175,6 +178,16 @@ export default class BuildingManager {
       if (tile && tile.terrainType === 'water') {
         return false;
       }
+
+      // Count rock tiles for Mine validation
+      if (tile && tile.terrainType === 'rock') {
+        rockTileCount++;
+      }
+    }
+
+    // Mine requires at least 2 rock tiles in its footprint
+    if (this.currentBuildingType === 'MINE' && rockTileCount < 2) {
+      return false;
     }
 
     return true;

@@ -49,9 +49,8 @@ export default class Unit extends Phaser.GameObjects.Container {
     this.sprite.setDisplaySize(this.size, this.size);
     this.add(this.sprite);
 
-    // Create faction border graphics
-    this.factionBorder = scene.add.graphics();
-    this.add(this.factionBorder);
+    // Apply faction tint/glow effect that follows the sprite shape
+    this.applyFactionEffect();
 
     // Create health bar graphics
     this.healthBarBg = scene.add.graphics();
@@ -88,18 +87,42 @@ export default class Unit extends Phaser.GameObjects.Container {
   }
 
   /**
+   * Apply faction effect (glow outline that follows sprite shape)
+   */
+  applyFactionEffect() {
+    const factionColor = FACTION_COLORS[this.faction] || FACTION_COLORS.PLAYER;
+
+    // Use preFX glow for an outline that follows the sprite shape
+    // Parameters: color, outerStrength, innerStrength, knockout
+    if (this.sprite.preFX) {
+      // Clear any existing effects
+      this.sprite.preFX.clear();
+
+      // Add subtle glow outline with faction color
+      // outerStrength: 2 (subtle), innerStrength: 0 (no inner glow), knockout: false
+      this.factionGlow = this.sprite.preFX.addGlow(factionColor, 2, 0, false);
+    } else {
+      // Fallback: apply a very light tint if preFX not available
+      // Blend faction color with white for a subtle effect
+      const r = ((factionColor >> 16) & 0xFF);
+      const g = ((factionColor >> 8) & 0xFF);
+      const b = (factionColor & 0xFF);
+      // Mix with white (lighten the tint significantly)
+      const lightR = Math.min(255, r + 180);
+      const lightG = Math.min(255, g + 180);
+      const lightB = Math.min(255, b + 180);
+      const lightTint = (lightR << 16) | (lightG << 8) | lightB;
+      this.sprite.setTint(lightTint);
+    }
+  }
+
+  /**
    * Draw the unit
    */
   draw() {
     // Clear previous graphics
     this.healthBarBg.clear();
     this.healthBarFill.clear();
-    this.factionBorder.clear();
-
-    // Draw faction border (circular outline around unit)
-    const factionColor = FACTION_COLORS[this.faction] || FACTION_COLORS.PLAYER;
-    this.factionBorder.lineStyle(2, factionColor, 1);
-    this.factionBorder.strokeCircle(0, 0, this.size / 2 + 2);
 
     // Health bar dimensions
     const barWidth = this.size;
@@ -115,12 +138,6 @@ export default class Unit extends Phaser.GameObjects.Container {
     const healthColor = healthPercent > 0.5 ? 0x4CAF50 : (healthPercent > 0.25 ? 0xFFEB3B : 0xF44336);
     this.healthBarFill.fillStyle(healthColor, 1);
     this.healthBarFill.fillRect(-barWidth / 2, barY, barWidth * healthPercent, barHeight);
-
-    // Remove sprite tinting - show natural sprite colors
-    this.sprite.clearTint();
-
-    // Selection is indicated by the selection circle, not sprite tint
-    // This keeps faction identity clear at all times
   }
 
   /**
@@ -636,8 +653,9 @@ export default class Unit extends Phaser.GameObjects.Container {
     if (this.statusText) {
       this.statusText.destroy();
     }
-    if (this.factionBorder) {
-      this.factionBorder.destroy();
+    // Clear preFX glow effect
+    if (this.sprite?.preFX) {
+      this.sprite.preFX.clear();
     }
     super.destroy();
   }

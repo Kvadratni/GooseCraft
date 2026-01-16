@@ -1073,8 +1073,16 @@ export default class UIScene extends Phaser.Scene {
 
   /**
    * Create a dynamic button for the building panel (simple text, no background)
+   * @param {number} x - X position
+   * @param {number} y - Y position
+   * @param {string} label - Button label
+   * @param {string} costText - Cost display text
+   * @param {string} icon - Icon emoji
+   * @param {function} onClick - Click handler
+   * @param {boolean} disabled - Whether button is disabled
+   * @param {string} tooltipText - Optional tooltip description
    */
-  createDynamicButton(x, y, label, costText, icon, onClick, disabled = false) {
+  createDynamicButton(x, y, label, costText, icon, onClick, disabled = false, tooltipText = null) {
     const btnWidth = 180;
     const btnHeight = 38;
     const leftPadding = 25; // More padding from left edge
@@ -1105,20 +1113,32 @@ export default class UIScene extends Phaser.Scene {
     });
 
     // Hover and click interactions
-    if (!disabled) {
-      bg.on('pointerdown', onClick);
-
-      bg.on('pointerover', () => {
+    bg.on('pointerover', () => {
+      if (!disabled) {
         labelText.setColor(hoverColor);
         cost.setColor(hoverColor);
         iconText.setScale(1.1);
-      });
+      }
+      // Show tooltip if provided - position to the left of the building panel
+      if (tooltipText) {
+        const tooltipContent = disabled
+          ? `${label}\n\n${tooltipText}\n\n⚠️ Not enough resources`
+          : `${label}\n\n${tooltipText}`;
+        // Position tooltip to the left of the panel (panelX - tooltip width - padding)
+        const tooltipX = this.panelX - 220;
+        this.showTooltip(tooltipX, y, tooltipContent);
+      }
+    });
 
-      bg.on('pointerout', () => {
-        labelText.setColor(normalColor);
-        cost.setColor(costColor);
-        iconText.setScale(1);
-      });
+    bg.on('pointerout', () => {
+      labelText.setColor(normalColor);
+      cost.setColor(costColor);
+      iconText.setScale(1);
+      this.hideTooltip();
+    });
+
+    if (!disabled) {
+      bg.on('pointerdown', onClick);
     }
 
     // Add all elements to container
@@ -1209,25 +1229,15 @@ export default class UIScene extends Phaser.Scene {
       progressText = `Building... ${Math.floor(building.constructionProgress)}%`;
       showBar = true;
       barColor = 0xFFD700; // Gold for construction
-    } else if (building.productionQueue) {
+    } else if (building.productionQueue?.getQueueStatus) {
       // Unit production queue
       const queueStatus = building.productionQueue.getQueueStatus();
-      if (queueStatus.isProducing) {
+      if (queueStatus?.isProducing) {
         progress = queueStatus.progress / 100;
         const timeLeft = (queueStatus.timeRemaining / 1000).toFixed(1);
         progressText = `Training ${queueStatus.currentUnit}... ${Math.floor(queueStatus.progress)}% (${timeLeft}s)`;
         showBar = true;
         barColor = 0x4CAF50; // Green for production
-      }
-    } else if (building.buildingType === 'FACTORY' && building.isProducing) {
-      // Factory tool production
-      const status = building.getProductionStatus?.();
-      if (status?.isProducing) {
-        progress = status.progress / 100;
-        const timeLeft = (status.timeRemaining / 1000).toFixed(1);
-        progressText = `Making tool... ${Math.floor(status.progress)}% (${timeLeft}s)`;
-        showBar = true;
-        barColor = 0x9E9E9E; // Gray for tools
       }
     } else if (building.buildingType === 'RESEARCH_CENTER') {
       // Research progress
@@ -1377,7 +1387,8 @@ export default class UIScene extends Phaser.Scene {
       this.panelX + 10, buttonY,
       'Train Worker', '50🌾',
       '👷', () => this.trainUnit('worker'),
-      !canAffordWorker
+      !canAffordWorker,
+      'Train a worker goose that can gather resources and construct buildings.'
     ));
     buttonY += 48;
 
@@ -1388,7 +1399,8 @@ export default class UIScene extends Phaser.Scene {
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
         '⬆️', () => this.purchaseUpgrade(key),
-        !canAffordUpgrade
+        !canAffordUpgrade,
+        upgrade.description || 'Upgrade your building.'
       ));
       buttonY += 48;
     }
@@ -1426,7 +1438,8 @@ export default class UIScene extends Phaser.Scene {
         this.panelX + 10, buttonY,
         'Train Guard', '75🌾 25💧 50🪵 2🔧',
         '🛡️', () => this.trainUnit('guard'),
-        !canAfford
+        !canAfford,
+        'Heavy defensive unit with high health and melee damage. Slow but tanky.'
       ));
       buttonY += 48;
     }
@@ -1436,7 +1449,8 @@ export default class UIScene extends Phaser.Scene {
         this.panelX + 10, buttonY,
         'Train Scout', '40🌾 30💧 20🪵 1🔧',
         '🏹', () => this.trainUnit('scout'),
-        !canAfford
+        !canAfford,
+        'Fast ranged unit with good vision. Quick but fragile.'
       ));
       buttonY += 48;
     }
@@ -1446,7 +1460,8 @@ export default class UIScene extends Phaser.Scene {
         this.panelX + 10, buttonY,
         'Train Spy', '60🌾 40💧 30🪵 3🔧',
         '🕵️', () => this.trainUnit('spy'),
-        !canAfford
+        !canAfford,
+        'Stealthy reconnaissance unit with extended vision range.'
       ));
       buttonY += 48;
     }
@@ -1458,7 +1473,8 @@ export default class UIScene extends Phaser.Scene {
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
         '⬆️', () => this.purchaseUpgrade(key),
-        !canAffordUpgrade
+        !canAffordUpgrade,
+        upgrade.description || 'Upgrade your barracks.'
       ));
       buttonY += 48;
     }
@@ -1498,7 +1514,8 @@ export default class UIScene extends Phaser.Scene {
       this.panelX + 10, buttonY,
       'Make Tool', `${sticksPerTool}🪵 → 1🔧`,
       '🔧', () => this.makeTools(),
-      !canAffordTool
+      !canAffordTool,
+      'Convert sticks into tools. Tools are required for training combat units.'
     ));
     buttonY += 48;
 
@@ -1510,7 +1527,8 @@ export default class UIScene extends Phaser.Scene {
         this.panelX + 10, buttonY,
         'Make Batch (5)', '20🪵 → 5🔧',
         '🔧🔧', () => this.makeBatchTools(),
-        !canAffordBatch
+        !canAffordBatch,
+        'Produce 5 tools at once for improved efficiency.'
       ));
       buttonY += 48;
     }
@@ -1522,7 +1540,8 @@ export default class UIScene extends Phaser.Scene {
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
         '⬆️', () => this.purchaseUpgrade(key),
-        !canAffordUpgrade
+        !canAffordUpgrade,
+        upgrade.description || 'Upgrade your factory.'
       ));
       buttonY += 48;
     }
@@ -1566,7 +1585,8 @@ export default class UIScene extends Phaser.Scene {
         this.panelX + 10, buttonY,
         upgrade.name, isResearching ? `${Math.floor(status.progress)}%...` : this.formatUpgradeCost(upgrade.cost),
         '🔬', () => this.startResearch(key),
-        isDisabled
+        isDisabled,
+        upgrade.description || 'Research new technology.'
       ));
       buttonY += 48;
       count++;
@@ -1596,7 +1616,8 @@ export default class UIScene extends Phaser.Scene {
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
         '⬆️', () => this.purchaseUpgrade(key),
-        !canAfford
+        !canAfford,
+        upgrade.description || 'Upgrade your watchtower.'
       ));
       buttonY += 48;
     }
@@ -1626,7 +1647,8 @@ export default class UIScene extends Phaser.Scene {
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
         '⬆️', () => this.purchaseUpgrade(key),
-        !canAfford
+        !canAfford,
+        upgrade.description || 'Upgrade your mine.'
       ));
       buttonY += 48;
     }
@@ -1655,7 +1677,8 @@ export default class UIScene extends Phaser.Scene {
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
         '⬆️', () => this.purchaseUpgrade(key),
-        !canAfford
+        !canAfford,
+        upgrade.description || 'Upgrade your power station.'
       ));
       buttonY += 48;
     }

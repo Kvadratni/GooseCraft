@@ -231,8 +231,8 @@ export const STARTING_RESOURCES = {
   food: 200,
   water: 100,
   sticks: 150,
-  stone: 0,  // Stone must be mined
-  tools: 0  // Tools must be produced by Factory
+  stone: 0,   // Stone must be mined
+  tools: 10   // Starting tools for early game flexibility
 };
 
 // Fog of War Configuration
@@ -295,7 +295,7 @@ export const FACTIONS = {
 
 // Faction Colors
 export const FACTION_COLORS = {
-  PLAYER: 0x4CAF50,    // Green
+  PLAYER: 0x2196F3,    // Blue (like Age of Empires)
   ENEMY_AI: 0xF44336,  // Red
   NEUTRAL: 0x9E9E9E    // Gray
 };

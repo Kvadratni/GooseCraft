@@ -36,10 +36,8 @@ export default class Building extends Phaser.GameObjects.Container {
     this.sprite.setAlpha(0.5); // Starts transparent during construction
     this.add(this.sprite);
 
-    // Create faction border
-    this.factionBorder = scene.add.graphics();
-    this.add(this.factionBorder);
-    this.drawFactionBorder();
+    // Apply faction glow effect that follows the sprite shape
+    this.applyFactionEffect();
 
     // Construction progress bar
     this.createProgressBar();
@@ -116,18 +114,30 @@ export default class Building extends Phaser.GameObjects.Container {
   }
 
   /**
-   * Draw faction border
+   * Apply faction effect (glow outline that follows sprite shape)
    */
-  drawFactionBorder() {
-    if (!this.factionBorder) return;
-
-    this.factionBorder.clear();
+  applyFactionEffect() {
     const factionColor = FACTION_COLORS[this.faction] || FACTION_COLORS.PLAYER;
-    this.factionBorder.lineStyle(3, factionColor, 1);
 
-    // Draw rectangular border around building
-    const halfSize = this.size / 2;
-    this.factionBorder.strokeRect(-halfSize, -halfSize, this.size, this.size);
+    // Use preFX glow for an outline that follows the sprite shape
+    if (this.sprite.preFX) {
+      // Clear any existing effects
+      this.sprite.preFX.clear();
+
+      // Add subtle glow outline with faction color
+      // outerStrength: 3 (slightly stronger for buildings), innerStrength: 0, knockout: false
+      this.factionGlow = this.sprite.preFX.addGlow(factionColor, 3, 0, false);
+    } else {
+      // Fallback: apply a very light tint if preFX not available
+      const r = ((factionColor >> 16) & 0xFF);
+      const g = ((factionColor >> 8) & 0xFF);
+      const b = (factionColor & 0xFF);
+      const lightR = Math.min(255, r + 180);
+      const lightG = Math.min(255, g + 180);
+      const lightB = Math.min(255, b + 180);
+      const lightTint = (lightR << 16) | (lightG << 8) | lightB;
+      this.sprite.setTint(lightTint);
+    }
   }
 
   /**
@@ -327,9 +337,9 @@ export default class Building extends Phaser.GameObjects.Container {
       this.progressText.destroy();
       this.progressText = null;
     }
-    if (this.factionBorder) {
-      this.factionBorder.destroy();
-      this.factionBorder = null;
+    // Clear preFX glow effect
+    if (this.sprite?.preFX) {
+      this.sprite.preFX.clear();
     }
     if (this.sprite) {
       this.sprite.destroy();
