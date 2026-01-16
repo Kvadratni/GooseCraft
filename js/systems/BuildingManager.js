@@ -77,6 +77,21 @@ export default class BuildingManager {
     // Create container for ghost
     this.ghostPreview = this.scene.add.container(0, 0);
 
+    // Add range indicator for Watchtower
+    if (this.currentBuildingType === 'WATCHTOWER') {
+      const rangeRadius = 200; // Base attack range
+      const rangeIndicator = this.scene.add.graphics();
+      rangeIndicator.lineStyle(2, 0x4a90d9, 0.6);
+      rangeIndicator.fillStyle(0x4a90d9, 0.1);
+      rangeIndicator.beginPath();
+      rangeIndicator.arc(0, 0, rangeRadius, 0, Math.PI * 2);
+      rangeIndicator.closePath();
+      rangeIndicator.fillPath();
+      rangeIndicator.strokePath();
+      this.ghostPreview.add(rangeIndicator);
+      this.ghostPreview.sendToBack(rangeIndicator); // Behind the building sprite
+    }
+
     // Create sprite (semi-transparent)
     const sprite = this.scene.add.sprite(0, 0, this.getSpriteKey(this.currentBuildingType));
     sprite.setDisplaySize(config.width, config.height);
