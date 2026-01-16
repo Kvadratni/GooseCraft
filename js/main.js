@@ -70,6 +70,26 @@ window.gc = {
       console.log(`Added ${amount} of all resources`);
     }
   },
+  maxResources: () => {
+    const gs = game.scene.getScene('GameScene');
+    if (!gs || !gs.resourceManager) { console.log('ResourceManager not ready'); return; }
+    const rm = gs.resourceManager;
+    const limits = rm.storageLimits;
+    const current = rm.resources;
+    // Calculate how much to add to reach max
+    const toAdd = {
+      food: limits.food - current.food,
+      water: limits.water - current.water,
+      sticks: limits.sticks - current.sticks,
+      stone: limits.stone - current.stone,
+      tools: limits.tools - current.tools
+    };
+    // Add resources directly
+    for (const [type, amount] of Object.entries(toAdd)) {
+      if (amount > 0) rm.addResources(type, amount);
+    }
+    console.log(`Resources maxed: food=${limits.food}, water=${limits.water}, sticks=${limits.sticks}, stone=${limits.stone}, tools=${limits.tools}`);
+  },
 
   // Spawn units at camera center or specified position
   spawn: (unitType, x, y) => {
@@ -226,6 +246,7 @@ Resources:
   gc.addStone(amount)    - Add stone
   gc.addTools(amount)    - Add tools
   gc.addAll(amount)      - Add all resources (default 500)
+  gc.maxResources()      - Fill all resources to storage limit
 
 Units:
   gc.spawn(type, x, y)      - Spawn player unit at position
