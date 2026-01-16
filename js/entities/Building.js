@@ -14,7 +14,7 @@ export default class Building extends Phaser.GameObjects.Container {
     this.buildingName = config.name || 'Building';
     this.faction = faction;
     this.maxHealth = config.health || 500;
-    this.currentHealth = this.maxHealth;
+    this.currentHealth = 0; // Starts at 0, increases with construction progress
 
     // Construction
     this.constructionProgress = 0;
@@ -147,21 +147,30 @@ export default class Building extends Phaser.GameObjects.Container {
    * Update health bar visibility and fill
    */
   updateHealthBar() {
-    const isDamaged = this.currentHealth < this.maxHealth;
     const isOperational = this.state === BUILDING_STATES.OPERATIONAL;
+    const isConstruction = this.state === BUILDING_STATES.CONSTRUCTION;
 
-    // Only show health bar when damaged and operational
-    this.healthBarBg.setVisible(isDamaged && isOperational);
-    this.healthBarFill.setVisible(isDamaged && isOperational);
+    // Calculate expected health for current state
+    let expectedHealth = this.maxHealth;
+    if (isConstruction) {
+      expectedHealth = Math.floor((this.constructionProgress / 100) * this.maxHealth);
+    }
 
-    if (isDamaged && isOperational) {
+    // Show health bar when damaged below expected health
+    const isDamaged = this.currentHealth < expectedHealth;
+    const shouldShow = isDamaged && (isOperational || isConstruction);
+
+    this.healthBarBg.setVisible(shouldShow);
+    this.healthBarFill.setVisible(shouldShow);
+
+    if (shouldShow) {
       const barWidth = this.size;
       const barHeight = 5;
       const barY = -this.size / 2 - 20;
 
       this.healthBarFill.clear();
 
-      // Color based on health percentage
+      // Color based on health percentage (relative to max health)
       const healthPercent = this.currentHealth / this.maxHealth;
       const healthColor = healthPercent > 0.5 ? 0x4CAF50 : (healthPercent > 0.25 ? 0xFFEB3B : 0xF44336);
 
@@ -237,6 +246,9 @@ export default class Building extends Phaser.GameObjects.Container {
 
     this.constructionProgress += progress;
 
+    // Update health proportional to construction progress
+    this.currentHealth = Math.floor((this.constructionProgress / 100) * this.maxHealth);
+
     if (this.constructionProgress >= 100) {
       this.constructionProgress = 100;
       this.completeConstruction();
@@ -248,6 +260,7 @@ export default class Building extends Phaser.GameObjects.Container {
    */
   completeConstruction() {
     this.constructionProgress = 100;
+    this.currentHealth = this.maxHealth; // Full health when construction completes
     this.state = BUILDING_STATES.OPERATIONAL;
     this.sprite.setAlpha(1);
 

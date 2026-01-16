@@ -1130,18 +1130,41 @@ export default class UIScene extends Phaser.Scene {
     this.progressBarText.setVisible(false);
     this.scrollableContent.add(this.progressBarText);
 
-    // Scroll indicator (thumb)
+    // Scroll indicator (thumb) - draggable
     this.scrollThumb = this.add.rectangle(
       this.panelX + this.panelWidth - 10,
       this.scrollAreaY,
-      6,
+      8,
       30,
       0x8b7355,
-      0.8
+      0.9
     );
     this.scrollThumb.setOrigin(0.5, 0);
     this.scrollThumb.setVisible(false);
+    this.scrollThumb.setInteractive({ useHandCursor: true, draggable: true });
     this.buildingPanelContainer.add(this.scrollThumb);
+
+    // Handle scrollbar dragging
+    this.input.setDraggable(this.scrollThumb);
+    this.scrollThumb.on('drag', (pointer, dragX, dragY) => {
+      const maxScroll = Math.max(0, this.scrollContentHeight - this.scrollAreaHeight);
+      if (maxScroll <= 0) return;
+
+      const thumbHeight = Math.max(20, (this.scrollAreaHeight / this.scrollContentHeight) * this.scrollAreaHeight);
+      const minThumbY = this.scrollAreaY;
+      const maxThumbY = this.scrollAreaY + this.scrollAreaHeight - thumbHeight;
+
+      // Clamp thumb position
+      const clampedY = Phaser.Math.Clamp(dragY, minThumbY, maxThumbY);
+
+      // Calculate scroll progress from thumb position
+      const scrollProgress = (clampedY - minThumbY) / (maxThumbY - minThumbY);
+      this.scrollOffset = scrollProgress * maxScroll;
+
+      // Update content position
+      this.scrollableContent.y = this.scrollAreaY - this.scrollOffset;
+      this.updateScrollThumb();
+    });
 
     // Dynamic buttons array (will be populated when showing panel)
     this.dynamicButtons = [];
@@ -1548,6 +1571,9 @@ export default class UIScene extends Phaser.Scene {
       case 'LUMBER_MILL':
         this.showLumberMillPanel(building);
         break;
+      case 'AIRSTRIP':
+        this.showAirstripPanel(building);
+        break;
       default:
         // Generic building with no special features
         this.buildingInfoText.setText('');
@@ -1677,6 +1703,57 @@ export default class UIScene extends Phaser.Scene {
         '⬆️', () => this.purchaseUpgrade(key),
         !canAffordUpgrade,
         upgrade.description || 'Upgrade your barracks.'
+      ));
+      buttonY += 38;
+    }
+  }
+
+  /**
+   * Show Airstrip panel (Maverick production + upgrades)
+   */
+  showAirstripPanel(building) {
+    const queueStatus = building.productionQueue?.getQueueStatus();
+    let infoText = '';
+    if (queueStatus?.isProducing) {
+      infoText = `Training: ${queueStatus.currentUnit} ${Math.floor(queueStatus.progress)}%`;
+    } else if (queueStatus?.queueLength > 0) {
+      infoText = `Queue: ${queueStatus.queueLength}`;
+    }
+    this.buildingInfoText.setText(infoText);
+
+    const upgrades = building.upgrades || {};
+    const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
+    const canProduce = building.canProduce || [];
+    const numButtons = canProduce.length + availableUpgrades.length;
+
+    this.sectionLabel.setText('Train Units & Upgrades:');
+    let buttonY = this.resizePanel(numButtons, infoText !== '');
+
+    const gameScene = this.scene.get('GameScene');
+    const resourceManager = gameScene?.resourceManager;
+
+    // Maverick production button
+    if (canProduce.includes('maverick')) {
+      const canAfford = resourceManager ? resourceManager.canAfford(UNIT_COSTS.MAVERICK) : true;
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        'Train Maverick', '100🌾 50💧 80🪵 8🔧',
+        '🦅', () => this.trainUnit('maverick'),
+        !canAfford,
+        'Fast aerial unit with ranged attacks. Can only be hit by other air units.'
+      ));
+      buttonY += 38;
+    }
+
+    // Upgrade buttons
+    for (const [key, upgrade] of availableUpgrades) {
+      const canAffordUpgrade = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        upgrade.name, this.formatUpgradeCost(upgrade.cost),
+        '⬆️', () => this.purchaseUpgrade(key),
+        !canAffordUpgrade,
+        upgrade.description || 'Upgrade your airstrip.'
       ));
       buttonY += 38;
     }

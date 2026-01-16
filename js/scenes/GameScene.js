@@ -474,8 +474,12 @@ export default class GameScene extends Phaser.Scene {
       d: Phaser.Input.Keyboard.KeyCodes.D
     });
 
-    // Mouse wheel zoom
+    // Mouse wheel zoom (skip if pointer is over UI panel)
     this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
+      const uiScene = this.scene.get('UIScene');
+      if (uiScene && uiScene.isPointerOverPanel && uiScene.isPointerOverPanel(pointer)) {
+        return; // Let UIScene handle the scroll
+      }
       this.handleZoom(deltaY);
     });
 
