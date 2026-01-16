@@ -665,8 +665,13 @@ export default class Unit extends Phaser.GameObjects.Container {
       this.scene.buildings.forEach(building => {
         if (!building.active) return;
 
-        // Use building size for collision radius
-        const buildingRadius = building.size / 2;
+        // Allow workers returning to their home base to get close
+        if (this.state === UNIT_STATES.RETURNING && this.homeBase === building) {
+          return;
+        }
+
+        // Use smaller collision radius (35% of building size) to allow units closer
+        const buildingRadius = building.size * 0.35;
         const dist = Phaser.Math.Distance.Between(this.x, this.y, building.x, building.y);
         const minDist = this.collisionRadius + buildingRadius;
 

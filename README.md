@@ -221,24 +221,23 @@ The codebase includes several performance optimizations:
 
 - No save/load system yet
 - Mobile controls not optimized
-- Limited sound effects
 - No multiplayer support
 
 ## Future Enhancements
 
 - [ ] Save/load game state
-- [ ] Combat system
 - [ ] More building and unit types
-- [ ] Technology research tree
 - [ ] Campaign mode
 - [ ] Mobile touch controls
-- [ ] Sound effects and music
 - [ ] Multiplayer/networking
 
 ## Credits
 
 - **Game Engine**: [Phaser 3](https://phaser.io/)
 - **Pathfinding**: [EasyStar.js](https://github.com/prettymuchbryce/easystarjs)
+- **Music**: [Suno AI](https://suno.ai/)
+- **Sound Effects**: [ElevenLabs](https://elevenlabs.io/)
+- **Art Assets**: [Google Gemini](https://gemini.google.com/) (via Nanobanana)
 
 ## License
 

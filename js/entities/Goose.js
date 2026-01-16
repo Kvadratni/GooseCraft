@@ -399,9 +399,11 @@ export default class Goose extends CombatUnit {
         this.moveTo(adjacentTile.x, adjacentTile.y);
         // State will be set to MOVING by moveTo, but will transition to RETURNING when arrived
       } else {
-        // Can't find walkable tile, but if we're reasonably close, just deposit
-        if (distance < 250) {
-          console.log(`Goose: Can't find path but close enough (${Math.round(distance)}px), depositing anyway`);
+        // Can't find walkable tile - be more forgiving, deposit if within reasonable range
+        // Use 350px or 2x building size, whichever is larger
+        const forgivingDistance = Math.max(350, this.homeBase.size * 2);
+        if (distance < forgivingDistance) {
+          console.log(`Goose: Can't find path but close enough (${Math.round(distance)}px < ${forgivingDistance}px), depositing anyway`);
           this.depositResources();
 
           // Continue gathering if resource available
@@ -413,11 +415,10 @@ export default class Goose extends CombatUnit {
             this.setState(UNIT_STATES.IDLE);
           }
         } else {
-          console.error(`Goose: Could not find walkable tile near base and too far to deposit (${Math.round(distance)}px)!`);
-          console.error(`Goose: Base position: (${Math.round(this.homeBase.x)}, ${Math.round(this.homeBase.y)})`);
-          console.error(`Goose: Current position: (${Math.round(this.x)}, ${Math.round(this.y)})`);
-          this.pendingReturnToBase = false;
-          this.setState(UNIT_STATES.IDLE);
+          // Really far away - try moving toward base anyway, deposit will happen when closer
+          console.warn(`Goose: Far from base (${Math.round(distance)}px), moving toward base center`);
+          this.pendingReturnToBase = true;
+          this.moveTo(this.homeBase.x, this.homeBase.y);
         }
       }
     }
@@ -678,6 +679,13 @@ export default class Goose extends CombatUnit {
     if (newState === UNIT_STATES.IDLE) {
       this.pendingGatherStart = false;
       this.pendingReturnToBase = false;
+
+      // If we have resources in inventory and were returning, try to deposit anyway
+      const totalResources = this.inventory.food + this.inventory.water + this.inventory.sticks + this.inventory.tools;
+      if (totalResources > 0 && this.state === UNIT_STATES.RETURNING) {
+        console.log('Goose: Got stuck while returning with resources, depositing anyway');
+        this.depositResources();
+      }
     }
 
     super.setState(newState);
