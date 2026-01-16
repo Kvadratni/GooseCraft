@@ -256,6 +256,55 @@ export default class Building extends Phaser.GameObjects.Container {
     }
   }
 
+  // ========== Research/Upgrade Bonus Methods ==========
+
+  /**
+   * Apply health bonus from research (Fortified Walls)
+   */
+  applyHealthBonus(multiplier) {
+    if (!this.baseMaxHealth) {
+      this.baseMaxHealth = this.maxHealth;
+    }
+    const oldMax = this.maxHealth;
+    this.maxHealth = Math.floor(this.baseMaxHealth * multiplier);
+    // Also heal the bonus amount
+    this.currentHealth += (this.maxHealth - oldMax);
+    console.log(`Building ${this.buildingName}: Max HP increased to ${this.maxHealth}`);
+  }
+
+  /**
+   * Apply construction speed bonus from research (Quick Build)
+   */
+  applyConstructionSpeedBonus(multiplier) {
+    if (this.state === 'CONSTRUCTION' && this.constructionTime) {
+      if (!this.baseConstructionTime) {
+        this.baseConstructionTime = this.constructionTime;
+      }
+      this.constructionTime = Math.floor(this.baseConstructionTime / multiplier);
+      console.log(`Building ${this.buildingName}: Construction time reduced to ${this.constructionTime}ms`);
+    }
+  }
+
+  /**
+   * Apply train speed bonus (Hatchery upgrade for Coop)
+   */
+  applyTrainSpeedBonus(multiplier) {
+    this.trainSpeedMultiplier = multiplier;
+    console.log(`Building ${this.buildingName}: Training speed increased by ${multiplier}x`);
+  }
+
+  /**
+   * Check and apply research bonuses when building completes
+   */
+  applyResearchBonuses() {
+    const upgrades = this.scene.researchUpgrades;
+    if (!upgrades) return;
+
+    if (upgrades.fortifiedWalls) {
+      this.applyHealthBonus(1.5);
+    }
+  }
+
   /**
    * Destroy building
    */

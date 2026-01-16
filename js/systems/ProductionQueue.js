@@ -16,7 +16,18 @@ export default class ProductionQueue {
     this.currentProduction = null;
     this.maxQueueSize = 5;
 
+    // Speed multiplier (from upgrades like Hatchery)
+    this.speedMultiplier = 1.0;
+
     console.log(`ProductionQueue: Created for ${building.buildingName}`);
+  }
+
+  /**
+   * Set speed multiplier (from building upgrades)
+   */
+  setSpeedMultiplier(multiplier) {
+    this.speedMultiplier = multiplier;
+    console.log(`ProductionQueue: Speed multiplier set to ${multiplier}x`);
   }
 
   /**
@@ -93,8 +104,18 @@ export default class ProductionQueue {
       return;
     }
 
+    // Calculate effective delta with multipliers
+    let effectiveDelta = delta * this.speedMultiplier;
+
+    // Apply power boost from nearby Power Station (20% faster)
+    if (this.building.powerBoosted) {
+      effectiveDelta *= 1.2;
+      // Reset power boost flag (will be re-applied by Power Station each frame)
+      this.building.powerBoosted = false;
+    }
+
     // Update progress
-    this.currentProduction.progress += delta;
+    this.currentProduction.progress += effectiveDelta;
 
     // Check if production complete
     if (this.currentProduction.progress >= this.currentProduction.totalTime) {

@@ -211,19 +211,19 @@ export const RESOURCE = {
   }
 };
 
-// Storage Limits
+// Storage Limits (base limits without any storage buildings)
 export const STORAGE = {
-  FOOD: 500,
-  WATER: 300,
-  STICKS: 1000,
-  STONE: 500,  // Stone storage
-  TOOLS: 100,  // Tools storage
+  FOOD: 200,       // Lower base - need Resource Storage to expand
+  WATER: 150,
+  STICKS: 300,
+  STONE: 100,
+  TOOLS: 20,
   // Increased by building ResourceStorage
   FOOD_PER_STORAGE: 300,
   WATER_PER_STORAGE: 200,
   STICKS_PER_STORAGE: 500,
-  STONE_PER_STORAGE: 300,
-  TOOLS_PER_STORAGE: 100
+  STONE_PER_STORAGE: 200,
+  TOOLS_PER_STORAGE: 50
 };
 
 // Starting Resources
@@ -303,11 +303,18 @@ export const FACTION_COLORS = {
 // Unit Costs (resources required to train)
 export const UNIT_COSTS = {
   WORKER: { food: 50, water: 0, sticks: 0, stone: 0, tools: 0 },
-  GUARD: { food: 75, water: 25, sticks: 50, stone: 0, tools: 5 },
-  SCOUT: { food: 40, water: 30, sticks: 20, stone: 0, tools: 3 },
-  SPY: { food: 60, water: 40, sticks: 30, stone: 0, tools: 10 },
-  HONKER: { food: 150, water: 50, sticks: 100, stone: 50, tools: 15 },
-  AIR_UNIT: { food: 100, water: 50, sticks: 80, stone: 100, tools: 20 }
+  GUARD: { food: 75, water: 25, sticks: 50, stone: 0, tools: 2 },
+  SCOUT: { food: 40, water: 30, sticks: 20, stone: 0, tools: 1 },
+  SPY: { food: 60, water: 40, sticks: 30, stone: 0, tools: 3 },
+  HONKER: { food: 150, water: 50, sticks: 100, stone: 50, tools: 5 },
+  AIR_UNIT: { food: 100, water: 50, sticks: 80, stone: 100, tools: 8 }
+};
+
+// Tool Production (Factory converts sticks to tools)
+export const TOOL_PRODUCTION = {
+  STICKS_PER_TOOL: 5,        // 5 sticks = 1 tool (was 10)
+  PRODUCTION_TIME: 3000,      // 3 seconds per tool
+  AUTO_PRODUCTION: false      // Requires Research Center upgrade
 };
 
 // Unit Train Time (milliseconds)

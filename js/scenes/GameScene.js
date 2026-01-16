@@ -162,71 +162,60 @@ export default class GameScene extends Phaser.Scene {
     const baseSpawnGridX = Math.floor(MAP.GRID_WIDTH * 0.3);
     const baseSpawnGridY = Math.floor(MAP.GRID_HEIGHT * 0.3);
 
-    // Configuration for resource distribution (scaled for larger map)
+    // Spawn forest groves first (clusters of trees)
+    this.spawnForestGroves(baseSpawnGridX, baseSpawnGridY);
+
+    // Configuration for other resources
     const resourceConfig = {
-      trees: {
-        count: 1000,  // 25x more trees for 5x larger map (40 * 25)
-        type: 'sticks',
-        terrainTypes: ['grass', 'dirt', 'rock', 'snow']  // Trees can spawn on various land types
-      },
       crops: {
-        count: 500,  // 25x more food sources (20 * 25)
+        count: 500,
         type: 'food',
-        terrainTypes: ['grass', 'dirt']  // Crops prefer grass/dirt
+        terrainTypes: ['grass', 'dirt']
       },
       water: {
-        count: 400,  // Water sources on water tiles
+        count: 400,
         type: 'water',
-        terrainTypes: ['water']  // Only on water tiles
+        terrainTypes: ['water']
       },
       puddles: {
-        count: 800,  // Many small water puddles on land (more accessible)
+        count: 800,
         type: 'water',
-        terrainTypes: ['grass', 'dirt', 'sand', 'snow']  // Puddles can appear on land and snow
+        terrainTypes: ['grass', 'dirt', 'sand', 'snow']
       }
-      // Stone is no longer a gatherable resource - it can only be obtained by placing a Mine on rock tiles
     };
 
     // Spawn each resource type
     for (const [resourceName, config] of Object.entries(resourceConfig)) {
       let spawned = 0;
       let attempts = 0;
-      const maxAttempts = config.count * 10;  // Allow multiple attempts per resource
+      const maxAttempts = config.count * 10;
 
       while (spawned < config.count && attempts < maxAttempts) {
         attempts++;
 
-        // Generate random grid position across the entire map
         const gridX = Math.floor(Math.random() * MAP.GRID_WIDTH);
         const gridY = Math.floor(Math.random() * MAP.GRID_HEIGHT);
 
-        // Don't spawn too close to base spawn area
         const distFromBase = Math.sqrt(
           Math.pow(gridX - baseSpawnGridX, 2) +
           Math.pow(gridY - baseSpawnGridY, 2)
         );
-        if (distFromBase < 6) continue;  // Skip if too close to base
+        if (distFromBase < 6) continue;
 
-        // Get tile to check terrain
         const tile = this.isometricMap.getTile(gridX, gridY);
         if (!tile) continue;
 
-        // Check if terrain type is valid for this resource
         if (!config.terrainTypes.includes(tile.terrainType)) {
           continue;
         }
 
-        // Special check for water resources - must be accessible from land
         if (config.type === 'water') {
           if (!this.isWaterTileAccessible(gridX, gridY)) {
-            continue;  // Skip water tiles that aren't adjacent to land
+            continue;
           }
         }
 
-        // Get world position for this grid cell
         const worldPos = this.isometricMap.getWorldPosCenter(gridX, gridY);
-
-        // Add small random offset for visual variety
         const offsetX = (Math.random() - 0.5) * 20;
         const offsetY = (Math.random() - 0.5) * 20;
 
@@ -238,10 +227,7 @@ export default class GameScene extends Phaser.Scene {
         );
 
         this.resourceNodes.push(node);
-
-        // Add to spatial hash for efficient queries
         this.resourceSpatialHash.insert(node, node.x, node.y);
-
         spawned++;
       }
 
@@ -249,6 +235,67 @@ export default class GameScene extends Phaser.Scene {
     }
 
     console.log(`GameScene: Total resource nodes spawned: ${this.resourceNodes.length}`);
+  }
+
+  /**
+   * Spawn forest groves - clusters of trees spread across the map
+   */
+  spawnForestGroves(baseSpawnGridX, baseSpawnGridY) {
+    const numGroves = 80;  // Number of forest groves
+    const minTreesPerGrove = 20;
+    const maxTreesPerGrove = 50;
+    const groveRadius = 12;  // How spread out trees are within a grove
+    const validTerrains = ['grass', 'dirt', 'rock', 'snow'];
+
+    let totalTrees = 0;
+
+    for (let grove = 0; grove < numGroves; grove++) {
+      // Pick random grove center
+      const groveCenterX = Math.floor(Math.random() * MAP.GRID_WIDTH);
+      const groveCenterY = Math.floor(Math.random() * MAP.GRID_HEIGHT);
+
+      // Skip if too close to player base
+      const distFromBase = Math.sqrt(
+        Math.pow(groveCenterX - baseSpawnGridX, 2) +
+        Math.pow(groveCenterY - baseSpawnGridY, 2)
+      );
+      if (distFromBase < 10) continue;
+
+      // Determine number of trees in this grove
+      const treesInGrove = minTreesPerGrove + Math.floor(Math.random() * (maxTreesPerGrove - minTreesPerGrove));
+
+      // Spawn trees in cluster around grove center
+      for (let t = 0; t < treesInGrove; t++) {
+        // Use gaussian-like distribution for natural clustering
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * Math.random() * groveRadius; // Squared for density at center
+        const gridX = Math.floor(groveCenterX + Math.cos(angle) * distance);
+        const gridY = Math.floor(groveCenterY + Math.sin(angle) * distance);
+
+        // Validate position
+        if (gridX < 0 || gridX >= MAP.GRID_WIDTH || gridY < 0 || gridY >= MAP.GRID_HEIGHT) continue;
+
+        const tile = this.isometricMap.getTile(gridX, gridY);
+        if (!tile || !validTerrains.includes(tile.terrainType)) continue;
+
+        const worldPos = this.isometricMap.getWorldPosCenter(gridX, gridY);
+        const offsetX = (Math.random() - 0.5) * 30;
+        const offsetY = (Math.random() - 0.5) * 30;
+
+        const node = new ResourceNode(
+          this,
+          worldPos.x + offsetX,
+          worldPos.y + offsetY,
+          'sticks'
+        );
+
+        this.resourceNodes.push(node);
+        this.resourceSpatialHash.insert(node, node.x, node.y);
+        totalTrees++;
+      }
+    }
+
+    console.log(`GameScene: Spawned ${totalTrees} trees in ${numGroves} forest groves`);
   }
 
   /**

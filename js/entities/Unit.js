@@ -516,11 +516,101 @@ export default class Unit extends Phaser.GameObjects.Container {
     this.draw();
   }
 
+  // ========== Research Bonus Methods ==========
+
+  /**
+   * Apply speed bonus from research (Swift Feet)
+   */
+  applySpeedBonus(multiplier) {
+    if (!this.baseSpeed) {
+      this.baseSpeed = this.speed;
+    }
+    this.speed = Math.floor(this.baseSpeed * multiplier);
+    console.log(`Unit ${this.unitType}: Speed increased to ${this.speed}`);
+  }
+
+  /**
+   * Apply vision bonus from research (Eagle Eyes)
+   */
+  applyVisionBonus(bonus) {
+    if (!this.baseVisionRange) {
+      this.baseVisionRange = this.visionRange;
+    }
+    this.visionRange = this.baseVisionRange + bonus;
+    console.log(`Unit ${this.unitType}: Vision range increased to ${this.visionRange}`);
+  }
+
+  /**
+   * Apply health bonus from research (Thick Feathers)
+   */
+  applyHealthBonus(multiplier) {
+    if (!this.baseMaxHealth) {
+      this.baseMaxHealth = this.maxHealth;
+    }
+    const oldMax = this.maxHealth;
+    this.maxHealth = Math.floor(this.baseMaxHealth * multiplier);
+    // Also heal the bonus amount
+    this.currentHealth += (this.maxHealth - oldMax);
+    this.draw();
+    console.log(`Unit ${this.unitType}: Max HP increased to ${this.maxHealth}`);
+  }
+
+  /**
+   * Apply gathering bonus from research (Efficient Gathering)
+   * Override in worker classes
+   */
+  applyGatheringBonus(multiplier) {
+    // Base implementation does nothing - override in Goose.js
+  }
+
+  /**
+   * Apply damage bonus from building upgrade (Combat Drills)
+   */
+  applyDamageBonus(multiplier) {
+    if (this.damage) {
+      if (!this.baseDamage) {
+        this.baseDamage = this.damage;
+      }
+      this.damage = Math.floor(this.baseDamage * multiplier);
+      console.log(`Unit ${this.unitType}: Damage increased to ${this.damage}`);
+    }
+  }
+
+  /**
+   * Check and apply all relevant research bonuses (for newly spawned units)
+   */
+  applyResearchBonuses() {
+    const upgrades = this.scene.researchUpgrades;
+    if (!upgrades) return;
+
+    if (upgrades.swiftFeet) {
+      this.applySpeedBonus(1.25);
+    }
+    if (upgrades.eagleEyes) {
+      this.applyVisionBonus(3);
+    }
+    if (upgrades.thickFeathers) {
+      this.applyHealthBonus(1.2);
+    }
+    if (upgrades.efficientGathering && this.unitType === 'worker') {
+      this.applyGatheringBonus(1.5);
+    }
+  }
+
   /**
    * Unit dies
    */
   die() {
     console.log(`Unit ${this.unitType} died`);
+
+    // Check for tool recycling (Factory upgrade)
+    if (this.scene.researchUpgrades?.toolRecycling) {
+      const resourceManager = this.scene.resourceManager;
+      if (resourceManager) {
+        resourceManager.addResources('tools', 1);
+        console.log('Tool recycled from fallen unit');
+      }
+    }
 
     // Remove from scene
     if (this.selectionCircle) {

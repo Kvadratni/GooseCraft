@@ -1,4 +1,4 @@
-// Mine - Stone extraction building
+// Mine - Stone extraction building with upgrades
 // Stone can ONLY be obtained by placing a Mine on rock terrain tiles
 
 import Building from '../entities/Building.js';
@@ -31,6 +31,22 @@ export default class Mine extends Building {
 
     // Effective gather amount based on rock tiles (0 if not on any rock)
     this.gatherAmount = this.rockTileCount * this.baseGatherAmount;
+
+    // Upgrades
+    this.upgrades = {
+      AUTO_EXTRACT: {
+        name: 'Auto Extract',
+        description: 'Mine extracts 50% faster',
+        cost: { food: 50, water: 50, sticks: 100, tools: 5 },
+        purchased: false
+      },
+      DEEP_MINING: {
+        name: 'Deep Mining',
+        description: 'Doubles stone output',
+        cost: { food: 75, water: 75, sticks: 200, tools: 10 },
+        purchased: false
+      }
+    };
 
     console.log(`Mine: Created at (${x}, ${y}), on ${this.rockTileCount} rock tiles, generates ${this.gatherAmount} stone per cycle`);
   }
@@ -117,6 +133,60 @@ export default class Mine extends Building {
   }
 
   /**
+   * Purchase an upgrade
+   */
+  purchaseUpgrade(upgradeKey) {
+    if (this.faction !== 'PLAYER') return false;
+
+    const upgrade = this.upgrades[upgradeKey];
+    if (!upgrade || upgrade.purchased) return false;
+
+    const resourceManager = this.scene.resourceManager;
+    if (!resourceManager.canAfford(upgrade.cost)) {
+      console.log(`Mine: Cannot afford ${upgrade.name}`);
+      return false;
+    }
+
+    resourceManager.spend(upgrade.cost);
+    upgrade.purchased = true;
+    console.log(`Mine: Purchased ${upgrade.name}!`);
+
+    // Apply upgrade effect
+    this.applyUpgrade(upgradeKey);
+    return true;
+  }
+
+  /**
+   * Apply upgrade effects
+   */
+  applyUpgrade(upgradeKey) {
+    switch (upgradeKey) {
+      case 'AUTO_EXTRACT':
+        // 50% faster = 0.67x interval
+        this.gatherInterval = Math.floor(this.gatherInterval * 0.67);
+        console.log(`Mine: Auto Extract - now extracts every ${this.gatherInterval/1000}s`);
+        break;
+      case 'DEEP_MINING':
+        // Double output
+        this.gatherAmount = this.gatherAmount * 2;
+        console.log(`Mine: Deep Mining - now produces ${this.gatherAmount} stone per cycle`);
+        break;
+    }
+  }
+
+  /**
+   * Get upgrade status for UI
+   */
+  getUpgradeStatus() {
+    return {
+      upgrades: this.upgrades,
+      gatherAmount: this.gatherAmount,
+      gatherInterval: this.gatherInterval,
+      rockTileCount: this.rockTileCount
+    };
+  }
+
+  /**
    * Override construction complete
    */
   onConstructionComplete() {
@@ -125,6 +195,7 @@ export default class Mine extends Building {
     } else {
       console.log('Mine: WARNING - Not on any rock tiles! No stone will be generated. Build on rock terrain for stone extraction.');
     }
+    this.applyResearchBonuses();
   }
 
   /**

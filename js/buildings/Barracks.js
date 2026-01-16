@@ -1,4 +1,4 @@
-// Barracks - Combat Unit Production Building
+// Barracks - Combat Unit Production Building with Upgrades
 
 import Building from '../entities/Building.js';
 import ProductionQueue from '../systems/ProductionQueue.js';
@@ -23,6 +23,22 @@ export default class Barracks extends Building {
     // Production capability
     this.productionQueue = new ProductionQueue(this, scene);
     this.canProduce = ['guard', 'scout']; // Base units, spy unlocked by Research Center
+
+    // Upgrades
+    this.upgrades = {
+      VETERAN_TRAINING: {
+        name: 'Veteran Training',
+        description: 'Combat units spawn with +25% HP',
+        cost: { food: 100, water: 50, sticks: 150, tools: 8 },
+        purchased: false
+      },
+      COMBAT_DRILLS: {
+        name: 'Combat Drills',
+        description: 'Combat units deal +15% damage',
+        cost: { food: 75, water: 75, sticks: 200, tools: 10 },
+        purchased: false
+      }
+    };
 
     // Check if Research Center already exists (for barracks built after research center)
     this.checkForResearchCenter();
@@ -56,6 +72,75 @@ export default class Barracks extends Building {
   }
 
   /**
+   * Purchase an upgrade
+   */
+  purchaseUpgrade(upgradeKey) {
+    if (this.faction !== 'PLAYER') return false;
+
+    const upgrade = this.upgrades[upgradeKey];
+    if (!upgrade || upgrade.purchased) return false;
+
+    const resourceManager = this.scene.resourceManager;
+    if (!resourceManager.canAfford(upgrade.cost)) {
+      console.log(`Barracks: Cannot afford ${upgrade.name}`);
+      return false;
+    }
+
+    resourceManager.spend(upgrade.cost);
+    upgrade.purchased = true;
+    console.log(`Barracks: Purchased ${upgrade.name}!`);
+
+    // Apply upgrade effect
+    this.applyUpgrade(upgradeKey);
+    return true;
+  }
+
+  /**
+   * Apply upgrade effects
+   */
+  applyUpgrade(upgradeKey) {
+    if (!this.scene.buildingUpgrades) this.scene.buildingUpgrades = {};
+
+    switch (upgradeKey) {
+      case 'VETERAN_TRAINING':
+        this.scene.buildingUpgrades.veteranTraining = true;
+        // Apply to existing combat units
+        if (this.scene.units) {
+          this.scene.units.forEach(unit => {
+            if (unit.faction === this.faction &&
+                ['guard', 'scout', 'spy'].includes(unit.unitType)) {
+              unit.applyHealthBonus(1.25);
+            }
+          });
+        }
+        console.log('Barracks: Veteran Training - combat units have +25% HP');
+        break;
+      case 'COMBAT_DRILLS':
+        this.scene.buildingUpgrades.combatDrills = true;
+        // Apply to existing combat units
+        if (this.scene.units) {
+          this.scene.units.forEach(unit => {
+            if (unit.faction === this.faction &&
+                ['guard', 'scout', 'spy'].includes(unit.unitType)) {
+              unit.applyDamageBonus(1.15);
+            }
+          });
+        }
+        console.log('Barracks: Combat Drills - combat units deal +15% damage');
+        break;
+    }
+  }
+
+  /**
+   * Get upgrade status for UI
+   */
+  getUpgradeStatus() {
+    return {
+      upgrades: this.upgrades
+    };
+  }
+
+  /**
    * Override update to process production
    */
   update(time, delta) {
@@ -79,5 +164,8 @@ export default class Barracks extends Building {
     if (this.canProduce.includes('spy')) {
       console.log('Barracks: Spy training available (Research Center detected)');
     }
+
+    // Apply research bonuses
+    this.applyResearchBonuses();
   }
 }

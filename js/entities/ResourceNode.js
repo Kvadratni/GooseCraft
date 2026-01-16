@@ -93,11 +93,10 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
         return; // Exit early for water
 
       case 'sticks':
-        // Use tree spritesheet - frames 0-3 are full trees, 4 is dead tree, 13 is log stump
-        // Pick a random tree variant at creation (consistent for this node)
-        spriteKey = 'trees';
-        this.baseFrame = Math.floor(Math.random() * 4); // 0-3 (full trees only)
-        frame = this.baseFrame;
+        // Use individual tree images - pick a random tree variant (1-5)
+        this.treeVariant = Math.floor(Math.random() * 5) + 1; // 1-5
+        spriteKey = `tree${this.treeVariant}`;
+        frame = null; // Not using spritesheet frames
         scale = 1.0;
         break;
       case 'stone':
@@ -139,20 +138,21 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
       return;
     }
 
-    // Create sprite from spritesheet
-    this.resourceSprite = this.scene.add.sprite(0, 0, spriteKey, frame);
+    // Create sprite (individual image or spritesheet frame)
+    if (frame !== null) {
+      this.resourceSprite = this.scene.add.sprite(0, 0, spriteKey, frame);
 
-    // Verify the frame exists
-    const texture = this.scene.textures.get(spriteKey);
-    const frameData = texture.get(frame);
+      // Verify the frame exists
+      const texture = this.scene.textures.get(spriteKey);
+      const frameData = texture.get(frame);
 
-    if (!frameData || frameData.name === '__BASE') {
-      console.error(`ResourceNode: Frame ${frame} not found in texture '${spriteKey}'`);
-      console.log(`ResourceNode: Total frames in spritesheet:`, texture.frameTotal);
-      console.log(`ResourceNode: First few frame names:`, Object.keys(texture.frames).slice(0, 10));
-
-      // Use frame 0 as fallback
-      this.resourceSprite.setFrame(0);
+      if (!frameData || frameData.name === '__BASE') {
+        console.error(`ResourceNode: Frame ${frame} not found in texture '${spriteKey}'`);
+        this.resourceSprite.setFrame(0);
+      }
+    } else {
+      // Individual image (no frame)
+      this.resourceSprite = this.scene.add.sprite(0, 0, spriteKey);
     }
 
     // Set display size for consistent appearance
@@ -252,26 +252,20 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
         this.resourceSprite.setAlpha(1.0);
       }
     } else if (this.resourceSprite && this.resourceType === 'sticks') {
-      // Trees: Show progression from full tree -> dead tree -> log stump
-      // Frame 0-3 = full trees, Frame 4 = dead tree (branches), Frame 13 = log stump
+      // Trees: Show full tree while gathering, swap to stump when depleted
       if (this.isDepleted) {
-        // Fully depleted: show log stump
-        this.resourceSprite.setFrame(13);
-        this.resourceSprite.setDisplaySize(32, 24); // Smaller stump size
+        // Fully depleted: swap texture to stump
+        this.resourceSprite.setTexture('stump');
+        this.resourceSprite.setDisplaySize(32, 24);
         this.resourceSprite.setOrigin(0.5, 0.5);
         this.resourceSprite.setAlpha(0.9);
-      } else if (percentRemaining < 0.5) {
-        // Half depleted: show dead tree with bare branches
-        this.resourceSprite.setFrame(4);
-        this.resourceSprite.setDisplaySize(48, 72);
-        this.resourceSprite.setOrigin(0.5, 0.85);
-        this.resourceSprite.setAlpha(1.0);
       } else {
-        // Healthy: show full tree
-        this.resourceSprite.setFrame(this.baseFrame || 0);
+        // Tree still has resources - show original tree with fading alpha
+        this.resourceSprite.setTexture(`tree${this.treeVariant}`);
         this.resourceSprite.setDisplaySize(48, 72);
         this.resourceSprite.setOrigin(0.5, 0.85);
-        this.resourceSprite.setAlpha(1.0);
+        // Fade slightly as resources deplete
+        this.resourceSprite.setAlpha(0.6 + (percentRemaining * 0.4));
       }
     }
 

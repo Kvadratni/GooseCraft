@@ -54,12 +54,13 @@ export default class BootScene extends Phaser.Scene {
       frameHeight: 300
     });
 
-    // Trees: 448x224 sheet, 7 columns x 2 rows = 64x112 per frame (14 total frames)
-    // Frame layout: 0-3 = full trees, 4 = dead tree (bare branches), 7-8 = small trees, 9 = grass, 13 = log stump
-    this.load.spritesheet('trees', 'assets/resources/trees.png', {
-      frameWidth: 64,
-      frameHeight: 112
-    });
+    // Individual tree images and stump
+    this.load.image('tree1', 'assets/resources/tree1.png');
+    this.load.image('tree2', 'assets/resources/tree2.png');
+    this.load.image('tree3', 'assets/resources/tree3.png');
+    this.load.image('tree4', 'assets/resources/tree4.png');
+    this.load.image('tree5', 'assets/resources/tree5.png');
+    this.load.image('stump', 'assets/resources/stump.png');
 
     // Load audio files
     this.load.audio('music-game', 'assets/audio/goosecraftMenu.mp3');
@@ -83,12 +84,11 @@ export default class BootScene extends Phaser.Scene {
 
     console.log('BootScene: Assets loaded successfully, transitioning to SplashScene');
 
-    // Debug: Check if spritesheets loaded correctly
+    // Debug: Check if assets loaded correctly
     try {
       const wheatTexture = this.textures.get('wheat');
-      const treesTexture = this.textures.get('trees');
       console.log(`BootScene: Wheat texture exists: ${wheatTexture.key}, frame count: ${Object.keys(wheatTexture.frames).length}`);
-      console.log(`BootScene: Trees texture exists: ${treesTexture.key}, frame count: ${Object.keys(treesTexture.frames).length}`);
+      console.log(`BootScene: Tree textures loaded: tree1-5, stump`);
     } catch (error) {
       console.error('BootScene: Error checking texture info:', error);
     }

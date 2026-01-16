@@ -1,8 +1,9 @@
 // UI Scene - HUD Overlay
 
-import { STARTING_RESOURCES, GAME_CONFIG, UI, BUILDING, FACTION_COLORS } from '../utils/Constants.js';
+import { STARTING_RESOURCES, GAME_CONFIG, UI, BUILDING, FACTION_COLORS, FACTIONS } from '../utils/Constants.js';
 import Goose from '../entities/Goose.js';
 import { createStyledButton } from '../ui/StyledButton.js';
+import { worldToGridInt } from '../utils/IsometricUtils.js';
 
 export default class UIScene extends Phaser.Scene {
   constructor() {
@@ -132,8 +133,8 @@ export default class UIScene extends Phaser.Scene {
     const gridWidth = map.gridWidth;
     const gridHeight = map.gridHeight;
 
-    // Match the scale calculation from updateMinimap
-    const scale = (this.minimapSize * 0.7) / Math.max(gridWidth, gridHeight);
+    // Match the scale calculation from updateMinimap (0.9 for better visibility)
+    const scale = (this.minimapSize * 0.9) / Math.max(gridWidth, gridHeight);
     const centerX = this.minimapX + this.minimapSize / 2;
     const centerY = this.minimapY + this.minimapSize / 2;
 
@@ -571,6 +572,9 @@ export default class UIScene extends Phaser.Scene {
     // Flag to track if terrain has been rendered
     this.minimapTerrainCached = false;
 
+    // Track last known positions of enemy buildings (for fog of war)
+    this.lastKnownEnemyBuildings = new Map(); // Map<buildingId, {gridX, gridY, type}>
+
     // Initial render
     this.updateMinimap();
   }
@@ -593,8 +597,21 @@ export default class UIScene extends Phaser.Scene {
     const centerX = this.minimapX + this.minimapSize / 2;
     const centerY = this.minimapY + this.minimapSize / 2;
 
-    // Scale to fit rotated diamond in minimap area
-    const scale = (this.minimapSize * 0.7) / Math.max(gridWidth, gridHeight);
+    // Scale to fit rotated diamond in minimap area (increased from 0.7 to 0.9 for better visibility)
+    const scale = (this.minimapSize * 0.9) / Math.max(gridWidth, gridHeight);
+
+    // Helper to check if a minimap position is within bounds
+    const isWithinMinimapBounds = (isoX, isoY) => {
+      return isoX >= this.minimapX && isoX <= this.minimapX + this.minimapSize &&
+             isoY >= this.minimapY && isoY <= this.minimapY + this.minimapSize;
+    };
+
+    // Helper to convert grid coords to minimap position
+    const gridToMinimap = (gx, gy) => {
+      const isoX = (gx - gy) * scale * 0.5 + centerX;
+      const isoY = (gx + gy) * scale * 0.25 + centerY - gridHeight * scale * 0.25;
+      return { x: isoX, y: isoY };
+    };
 
     // Render static terrain only once (cached)
     if (!this.minimapTerrainCached) {
@@ -634,14 +651,14 @@ export default class UIScene extends Phaser.Scene {
               color = 0x66BB6A;  // Default green
           }
 
-          // Convert grid to isometric minimap position (rotated 45 degrees)
-          // This makes the diamond shape match the in-game isometric view
-          const isoX = (x - y) * scale * 0.5 + centerX;
-          const isoY = (x + y) * scale * 0.25 + centerY - gridHeight * scale * 0.25;
+          // Convert grid to isometric minimap position
+          const pos = gridToMinimap(x, y);
 
-          // Draw small diamond for each tile
-          this.minimapTerrainGraphics.fillStyle(color, 1);
-          this.minimapTerrainGraphics.fillRect(isoX - scale * 0.3, isoY - scale * 0.15, scale * 0.6, scale * 0.3);
+          // Only draw if within minimap bounds
+          if (isWithinMinimapBounds(pos.x, pos.y)) {
+            this.minimapTerrainGraphics.fillStyle(color, 1);
+            this.minimapTerrainGraphics.fillRect(pos.x - scale * 0.3, pos.y - scale * 0.15, scale * 0.6, scale * 0.3);
+          }
         }
       }
 
@@ -651,39 +668,73 @@ export default class UIScene extends Phaser.Scene {
     // Update dynamic elements (units, buildings) on separate layer
     this.minimapGraphics.clear();
 
-    // Draw buildings (with faction colors)
+    // Get fog of war system if available
+    const fogOfWar = gameScene.fogOfWar;
+
+    // Draw player buildings (always visible)
     if (gameScene.buildings) {
       gameScene.buildings.forEach(building => {
-        const factionColor = FACTION_COLORS[building.faction] || FACTION_COLORS.PLAYER;
-        this.minimapGraphics.fillStyle(factionColor, 1);
+        // Use proper isometric world-to-grid conversion
+        const gridPos = worldToGridInt(building.x, building.y);
 
-        // Convert world to grid coords
-        const gridX = Math.floor(building.x / 32);
-        const gridY = Math.floor(building.y / 16);
+        // For enemy buildings, track last known position and only show if explored
+        if (building.faction === FACTIONS.ENEMY_AI) {
+          // Check if position is currently visible or was explored
+          const isVisible = fogOfWar ? fogOfWar.isVisible(gridPos.x, gridPos.y) : true;
+          const isExplored = fogOfWar ? fogOfWar.isExplored(gridPos.x, gridPos.y) : true;
+
+          if (isVisible) {
+            // Update last known position
+            this.lastKnownEnemyBuildings.set(building.id || `building_${building.x}_${building.y}`, {
+              gridX: gridPos.x,
+              gridY: gridPos.y,
+              type: building.buildingType
+            });
+          }
+
+          // Only draw if explored (use last known or current position)
+          if (!isExplored) return;
+
+          // Use slightly faded color if not currently visible
+          const alpha = isVisible ? 1 : 0.6;
+          this.minimapGraphics.fillStyle(FACTION_COLORS.ENEMY_AI, alpha);
+        } else {
+          // Player buildings - always fully visible
+          this.minimapGraphics.fillStyle(FACTION_COLORS.PLAYER, 1);
+        }
 
         // Convert to isometric minimap position
-        const isoX = (gridX - gridY) * scale * 0.5 + centerX;
-        const isoY = (gridX + gridY) * scale * 0.25 + centerY - gridHeight * scale * 0.25;
+        const pos = gridToMinimap(gridPos.x, gridPos.y);
 
-        this.minimapGraphics.fillRect(isoX - 2, isoY - 1, 4, 3);
+        // Only draw if within minimap bounds
+        if (isWithinMinimapBounds(pos.x, pos.y)) {
+          this.minimapGraphics.fillRect(pos.x - 2, pos.y - 1, 4, 3);
+        }
       });
     }
 
     // Draw units (with faction colors)
     if (gameScene.units && gameScene.units.length < 100) {
       gameScene.units.forEach(unit => {
+        // Use proper isometric world-to-grid conversion
+        const gridPos = worldToGridInt(unit.x, unit.y);
+
+        // For enemy units, only show if currently visible
+        if (unit.faction === FACTIONS.ENEMY_AI) {
+          const isVisible = fogOfWar ? fogOfWar.isVisible(gridPos.x, gridPos.y) : true;
+          if (!isVisible) return; // Don't show enemy units in fog
+        }
+
         const factionColor = FACTION_COLORS[unit.faction] || FACTION_COLORS.PLAYER;
         this.minimapGraphics.fillStyle(factionColor, 1);
 
-        // Convert world to grid coords
-        const gridX = Math.floor(unit.x / 32);
-        const gridY = Math.floor(unit.y / 16);
-
         // Convert to isometric minimap position
-        const isoX = (gridX - gridY) * scale * 0.5 + centerX;
-        const isoY = (gridX + gridY) * scale * 0.25 + centerY - gridHeight * scale * 0.25;
+        const pos = gridToMinimap(gridPos.x, gridPos.y);
 
-        this.minimapGraphics.fillRect(isoX - 1, isoY - 1, 2, 2);
+        // Only draw if within minimap bounds
+        if (isWithinMinimapBounds(pos.x, pos.y)) {
+          this.minimapGraphics.fillRect(pos.x - 1, pos.y - 1, 2, 2);
+        }
       });
     }
 
@@ -769,8 +820,8 @@ export default class UIScene extends Phaser.Scene {
     const gridWidth = map.gridWidth;
     const gridHeight = map.gridHeight;
 
-    // Match the scale and center calculation from updateMinimap
-    const scale = (this.minimapSize * 0.7) / Math.max(gridWidth, gridHeight);
+    // Match the scale and center calculation from updateMinimap (0.9 for better visibility)
+    const scale = (this.minimapSize * 0.9) / Math.max(gridWidth, gridHeight);
     const centerX = this.minimapX + this.minimapSize / 2;
     const centerY = this.minimapY + this.minimapSize / 2;
 
@@ -809,31 +860,33 @@ export default class UIScene extends Phaser.Scene {
 
   /**
    * Create building panel (initially hidden)
+   * Dynamic panel that adjusts to show upgrades for any building
    */
   createBuildingPanel() {
-    const panelWidth = 250;
-    const panelHeight = 200;
-    const panelX = (this.screenWidth - 220 - panelWidth) / 2;
-    const panelY = this.screenHeight - panelHeight - 50;
+    // Store panel dimensions for dynamic updates
+    this.panelWidth = 280;
+    this.panelBaseHeight = 120; // Base height without buttons
+    this.panelX = (this.screenWidth - 220 - this.panelWidth) / 2;
+    this.panelY = this.screenHeight - 400; // Will be adjusted based on content
 
     // Container for all building panel elements
     this.buildingPanelContainer = this.add.container(0, 0);
     this.buildingPanelContainer.setDepth(2000);
     this.buildingPanelContainer.setVisible(false);
 
-    // Background
-    const bg = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x2a2a2a, 0.95);
-    bg.setOrigin(0, 0);
-    this.buildingPanelContainer.add(bg);
+    // Background (will be resized dynamically)
+    this.panelBg = this.add.rectangle(this.panelX, this.panelY, this.panelWidth, this.panelBaseHeight, 0x2a2a2a, 0.95);
+    this.panelBg.setOrigin(0, 0);
+    this.buildingPanelContainer.add(this.panelBg);
 
-    // Border
-    const border = this.add.rectangle(panelX, panelY, panelWidth, panelHeight);
-    border.setOrigin(0, 0);
-    border.setStrokeStyle(3, 0x4CAF50);
-    this.buildingPanelContainer.add(border);
+    // Border (will be resized dynamically)
+    this.panelBorder = this.add.rectangle(this.panelX, this.panelY, this.panelWidth, this.panelBaseHeight);
+    this.panelBorder.setOrigin(0, 0);
+    this.panelBorder.setStrokeStyle(3, 0x4CAF50);
+    this.buildingPanelContainer.add(this.panelBorder);
 
     // Title
-    this.buildingNameText = this.add.text(panelX + 10, panelY + 10, 'Building', {
+    this.buildingNameText = this.add.text(this.panelX + 10, this.panelY + 10, 'Building', {
       fontSize: '20px',
       fill: '#ffffff',
       fontFamily: 'Arial',
@@ -842,107 +895,67 @@ export default class UIScene extends Phaser.Scene {
     this.buildingPanelContainer.add(this.buildingNameText);
 
     // Status text
-    this.buildingStatusText = this.add.text(panelX + 10, panelY + 40, 'Status: Operational', {
+    this.buildingStatusText = this.add.text(this.panelX + 10, this.panelY + 40, 'Status: Operational', {
       fontSize: '14px',
       fill: '#4CAF50',
       fontFamily: 'Arial'
     });
     this.buildingPanelContainer.add(this.buildingStatusText);
 
-    // Production label
-    this.productionLabel = this.add.text(panelX + 10, panelY + 70, 'Train Units:', {
+    // Info text (for building-specific info like production rates)
+    this.buildingInfoText = this.add.text(this.panelX + 10, this.panelY + 60, '', {
+      fontSize: '12px',
+      fill: '#FFD700',
+      fontFamily: 'Arial',
+      wordWrap: { width: this.panelWidth - 20 }
+    });
+    this.buildingPanelContainer.add(this.buildingInfoText);
+
+    // Section label (Production/Upgrades/Research)
+    this.sectionLabel = this.add.text(this.panelX + 10, this.panelY + 85, '', {
       fontSize: '16px',
       fill: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     });
-    this.buildingPanelContainer.add(this.productionLabel);
-
-    // Train worker button
-    this.trainWorkerButton = this.createProductionButton(
-      panelX + 10,
-      panelY + 100,
-      'Train Worker',
-      '50 🌾',
-      () => this.trainUnit('worker')
-    );
-    this.buildingPanelContainer.add(this.trainWorkerButton.bg);
-    this.buildingPanelContainer.add(this.trainWorkerButton.icon);
-    this.buildingPanelContainer.add(this.trainWorkerButton.label);
-    this.buildingPanelContainer.add(this.trainWorkerButton.cost);
-
-    // Train Guard button
-    this.trainGuardButton = this.createProductionButton(
-      panelX + 10,
-      panelY + 100,
-      'Train Guard',
-      '75 🌾 25 💧 50 🪵 5 🔧',
-      () => this.trainUnit('guard')
-    );
-    this.buildingPanelContainer.add(this.trainGuardButton.bg);
-    this.buildingPanelContainer.add(this.trainGuardButton.icon);
-    this.buildingPanelContainer.add(this.trainGuardButton.label);
-    this.buildingPanelContainer.add(this.trainGuardButton.cost);
-
-    // Train Scout button
-    this.trainScoutButton = this.createProductionButton(
-      panelX + 10,
-      panelY + 155,
-      'Train Scout',
-      '40 🌾 30 💧 20 🪵 3 🔧',
-      () => this.trainUnit('scout')
-    );
-    this.buildingPanelContainer.add(this.trainScoutButton.bg);
-    this.buildingPanelContainer.add(this.trainScoutButton.icon);
-    this.buildingPanelContainer.add(this.trainScoutButton.label);
-    this.buildingPanelContainer.add(this.trainScoutButton.cost);
-
-    // Train Spy button (unlocked by Research Center)
-    this.trainSpyButton = this.createProductionButton(
-      panelX + 10,
-      panelY + 195,
-      'Train Spy',
-      '60 🌾 40 💧 30 🪵 10 🔧',
-      () => this.trainUnit('spy')
-    );
-    this.buildingPanelContainer.add(this.trainSpyButton.bg);
-    this.buildingPanelContainer.add(this.trainSpyButton.icon);
-    this.buildingPanelContainer.add(this.trainSpyButton.label);
-    this.buildingPanelContainer.add(this.trainSpyButton.cost);
+    this.buildingPanelContainer.add(this.sectionLabel);
 
     // Close button
-    const closeBtn = this.add.text(panelX + panelWidth - 30, panelY + 5, '✕', {
+    this.closeBtn = this.add.text(this.panelX + this.panelWidth - 30, this.panelY + 5, '✕', {
       fontSize: '24px',
       fill: '#ffffff',
       fontFamily: 'Arial'
     });
-    closeBtn.setInteractive({ useHandCursor: true });
-    closeBtn.on('pointerdown', () => this.hideBuildingPanel());
-    closeBtn.on('pointerover', () => closeBtn.setColor('#ff0000'));
-    closeBtn.on('pointerout', () => closeBtn.setColor('#ffffff'));
-    this.buildingPanelContainer.add(closeBtn);
+    this.closeBtn.setInteractive({ useHandCursor: true });
+    this.closeBtn.on('pointerdown', () => this.hideBuildingPanel());
+    this.closeBtn.on('pointerover', () => this.closeBtn.setColor('#ff0000'));
+    this.closeBtn.on('pointerout', () => this.closeBtn.setColor('#ffffff'));
+    this.buildingPanelContainer.add(this.closeBtn);
+
+    // Dynamic buttons array (will be populated when showing panel)
+    this.dynamicButtons = [];
   }
 
   /**
-   * Create a production button
+   * Create a dynamic button for the building panel
    */
-  createProductionButton(x, y, label, cost, onClick) {
-    const btnWidth = 230;
-    const btnHeight = 45;
+  createDynamicButton(x, y, label, costText, icon, onClick, disabled = false) {
+    const btnWidth = 260;
+    const btnHeight = 42;
 
     // Create styled button
     const bg = createStyledButton(
       this,
       x + btnWidth / 2,
       y + btnHeight / 2,
-      '', // No text, we'll add custom content
-      onClick,
+      '',
+      disabled ? null : onClick,
       {
         width: btnWidth,
         height: btnHeight,
-        cornerRadius: 10,
+        cornerRadius: 8,
         fontSize: '14px',
-        disabled: false
+        disabled: disabled
       }
     );
 
@@ -951,120 +964,444 @@ export default class UIScene extends Phaser.Scene {
       bg.buttonText.destroy();
     }
 
-    // Choose icon based on label
-    let iconEmoji = '👷';
-    if (label.includes('Guard')) iconEmoji = '🛡️';
-    else if (label.includes('Scout')) iconEmoji = '🏹';
-    else if (label.includes('Honker')) iconEmoji = '💥';
-
-    const icon = this.add.text(x + 5, y + btnHeight / 2 - 10, iconEmoji, {
-      fontSize: '20px'
+    const iconText = this.add.text(x + 5, y + btnHeight / 2 - 10, icon, {
+      fontSize: '18px'
     });
 
-    const labelText = this.add.text(x + 35, y + 8, label, {
-      fontSize: '14px',
-      fill: '#ffffff',
+    const labelText = this.add.text(x + 30, y + 6, label, {
+      fontSize: '13px',
+      fill: disabled ? '#888888' : '#ffffff',
       fontFamily: 'Arial',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 3
+      strokeThickness: 2
     });
 
-    const costText = this.add.text(x + 35, y + 26, cost, {
-      fontSize: '11px',
-      fill: '#ffffff',
+    const cost = this.add.text(x + 30, y + 24, costText, {
+      fontSize: '10px',
+      fill: disabled ? '#666666' : '#cccccc',
       fontFamily: 'Arial',
       stroke: '#000000',
       strokeThickness: 2
     });
 
-    return { bg, icon, label: labelText, cost: costText };
+    // Add all elements to container
+    this.buildingPanelContainer.add(bg);
+    this.buildingPanelContainer.add(iconText);
+    this.buildingPanelContainer.add(labelText);
+    this.buildingPanelContainer.add(cost);
+
+    return { bg, icon: iconText, label: labelText, cost };
   }
 
   /**
-   * Show building panel
+   * Clear all dynamic buttons from the panel
+   */
+  clearDynamicButtons() {
+    this.dynamicButtons.forEach(btn => {
+      if (btn.bg) btn.bg.destroy();
+      if (btn.icon) btn.icon.destroy();
+      if (btn.label) btn.label.destroy();
+      if (btn.cost) btn.cost.destroy();
+    });
+    this.dynamicButtons = [];
+  }
+
+  /**
+   * Resize the panel to fit content
+   */
+  resizePanel(numButtons, hasInfo = false) {
+    const buttonHeight = 48;
+    const infoHeight = hasInfo ? 25 : 0;
+    const headerHeight = 110;
+    const totalHeight = headerHeight + infoHeight + (numButtons * buttonHeight) + 20;
+
+    // Update panel position to stay on screen
+    this.panelY = this.screenHeight - totalHeight - 50;
+
+    // Update background and border
+    this.panelBg.setPosition(this.panelX, this.panelY);
+    this.panelBg.setSize(this.panelWidth, totalHeight);
+    this.panelBorder.setPosition(this.panelX, this.panelY);
+    this.panelBorder.setSize(this.panelWidth, totalHeight);
+
+    // Update text positions
+    this.buildingNameText.setPosition(this.panelX + 10, this.panelY + 10);
+    this.buildingStatusText.setPosition(this.panelX + 10, this.panelY + 40);
+    this.buildingInfoText.setPosition(this.panelX + 10, this.panelY + 60);
+    this.sectionLabel.setPosition(this.panelX + 10, this.panelY + 60 + infoHeight + 15);
+    this.closeBtn.setPosition(this.panelX + this.panelWidth - 30, this.panelY + 5);
+
+    return this.panelY + 60 + infoHeight + 40; // Return Y position for first button
+  }
+
+  /**
+   * Format upgrade cost for display
+   */
+  formatUpgradeCost(cost) {
+    const parts = [];
+    if (cost.food > 0) parts.push(`${cost.food}🌾`);
+    if (cost.water > 0) parts.push(`${cost.water}💧`);
+    if (cost.sticks > 0) parts.push(`${cost.sticks}🪵`);
+    if (cost.stone > 0) parts.push(`${cost.stone}🪨`);
+    if (cost.tools > 0) parts.push(`${cost.tools}🔧`);
+    return parts.join(' ');
+  }
+
+  /**
+   * Show building panel with dynamic content based on building type
    */
   showBuildingPanel(building) {
     this.selectedBuilding = building;
+    this.clearDynamicButtons();
+
     this.buildingNameText.setText(building.buildingName);
 
+    // Handle construction state
     if (building.state === 'CONSTRUCTION') {
       this.buildingStatusText.setText(`Building ${Math.floor(building.constructionProgress)}%`);
       this.buildingStatusText.setColor('#FFD700');
-      this.productionLabel.setVisible(false);
-      this.trainWorkerButton.bg.setVisible(false);
-      this.trainWorkerButton.icon.setVisible(false);
-      this.trainWorkerButton.label.setVisible(false);
-      this.trainWorkerButton.cost.setVisible(false);
-    } else {
-      this.buildingStatusText.setText('Status: Operational');
-      this.buildingStatusText.setColor('#4CAF50');
+      this.buildingInfoText.setText('');
+      this.sectionLabel.setText('');
+      this.resizePanel(0);
+      this.buildingPanelContainer.setVisible(true);
+      return;
+    }
 
-      // Show production UI for buildings with production capability
-      if (building.productionQueue && building.canProduce && building.canProduce.length > 0) {
-        this.productionLabel.setVisible(true);
+    this.buildingStatusText.setText('Status: Operational');
+    this.buildingStatusText.setColor('#4CAF50');
 
-        // Show production queue status
-        const queueStatus = building.productionQueue.getQueueStatus();
-        if (queueStatus.isProducing) {
-          const timeLeft = (queueStatus.timeRemaining / 1000).toFixed(1);
-          const progressPercent = Math.floor(queueStatus.progress);
-          this.productionLabel.setText(`Producing: ${queueStatus.currentUnit} [${progressPercent}%] ${timeLeft}s | Queue: ${queueStatus.queueLength - 1}`);
-        } else if (queueStatus.queueLength > 0) {
-          this.productionLabel.setText(`Queue: ${queueStatus.queueLength} waiting`);
-        } else {
-          this.productionLabel.setText('Production: Idle');
-        }
-
-        // Show worker button for Coop
-        const showWorker = building.canProduce.includes('worker');
-        this.trainWorkerButton.bg.setVisible(showWorker);
-        this.trainWorkerButton.icon.setVisible(showWorker);
-        this.trainWorkerButton.label.setVisible(showWorker);
-        this.trainWorkerButton.cost.setVisible(showWorker);
-
-        // Show Guard button for Barracks
-        const showGuard = building.canProduce.includes('guard');
-        this.trainGuardButton.bg.setVisible(showGuard);
-        this.trainGuardButton.icon.setVisible(showGuard);
-        this.trainGuardButton.label.setVisible(showGuard);
-        this.trainGuardButton.cost.setVisible(showGuard);
-
-        // Show Scout button for Barracks
-        const showScout = building.canProduce.includes('scout');
-        this.trainScoutButton.bg.setVisible(showScout);
-        this.trainScoutButton.icon.setVisible(showScout);
-        this.trainScoutButton.label.setVisible(showScout);
-        this.trainScoutButton.cost.setVisible(showScout);
-
-        // Show Spy button for Barracks (when Research Center built)
-        const showSpy = building.canProduce.includes('spy');
-        this.trainSpyButton.bg.setVisible(showSpy);
-        this.trainSpyButton.icon.setVisible(showSpy);
-        this.trainSpyButton.label.setVisible(showSpy);
-        this.trainSpyButton.cost.setVisible(showSpy);
-      } else {
-        this.productionLabel.setVisible(false);
-        this.trainWorkerButton.bg.setVisible(false);
-        this.trainWorkerButton.icon.setVisible(false);
-        this.trainWorkerButton.label.setVisible(false);
-        this.trainWorkerButton.cost.setVisible(false);
-        this.trainGuardButton.bg.setVisible(false);
-        this.trainGuardButton.icon.setVisible(false);
-        this.trainGuardButton.label.setVisible(false);
-        this.trainGuardButton.cost.setVisible(false);
-        this.trainScoutButton.bg.setVisible(false);
-        this.trainScoutButton.icon.setVisible(false);
-        this.trainScoutButton.label.setVisible(false);
-        this.trainScoutButton.cost.setVisible(false);
-        this.trainSpyButton.bg.setVisible(false);
-        this.trainSpyButton.icon.setVisible(false);
-        this.trainSpyButton.label.setVisible(false);
-        this.trainSpyButton.cost.setVisible(false);
-      }
+    // Build panel content based on building type
+    switch (building.buildingType) {
+      case 'COOP':
+        this.showCoopPanel(building);
+        break;
+      case 'BARRACKS':
+        this.showBarracksPanel(building);
+        break;
+      case 'FACTORY':
+        this.showFactoryPanel(building);
+        break;
+      case 'RESEARCH_CENTER':
+        this.showResearchCenterPanel(building);
+        break;
+      case 'WATCHTOWER':
+        this.showWatchtowerPanel(building);
+        break;
+      case 'MINE':
+        this.showMinePanel(building);
+        break;
+      case 'POWER_STATION':
+        this.showPowerStationPanel(building);
+        break;
+      case 'RESOURCE_STORAGE':
+        this.showResourceStoragePanel(building);
+        break;
+      default:
+        // Generic building with no special features
+        this.buildingInfoText.setText('');
+        this.sectionLabel.setText('');
+        this.resizePanel(0);
     }
 
     this.buildingPanelContainer.setVisible(true);
+  }
+
+  /**
+   * Show Coop panel (worker production + upgrades)
+   */
+  showCoopPanel(building) {
+    const queueStatus = building.productionQueue?.getQueueStatus();
+    let infoText = '';
+    if (queueStatus?.isProducing) {
+      infoText = `Training: ${queueStatus.currentUnit} ${Math.floor(queueStatus.progress)}%`;
+    } else if (queueStatus?.queueLength > 0) {
+      infoText = `Queue: ${queueStatus.queueLength}`;
+    }
+    this.buildingInfoText.setText(infoText);
+
+    // Count buttons needed
+    const upgrades = building.upgrades || {};
+    const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
+    const numButtons = 1 + availableUpgrades.length; // 1 for train worker
+
+    this.sectionLabel.setText('Production & Upgrades:');
+    let buttonY = this.resizePanel(numButtons, infoText !== '');
+
+    // Train Worker button
+    this.dynamicButtons.push(this.createDynamicButton(
+      this.panelX + 10, buttonY,
+      'Train Worker', '50🌾',
+      '👷', () => this.trainUnit('worker')
+    ));
+    buttonY += 48;
+
+    // Upgrade buttons
+    for (const [key, upgrade] of availableUpgrades) {
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        upgrade.name, this.formatUpgradeCost(upgrade.cost),
+        '⬆️', () => this.purchaseUpgrade(key)
+      ));
+      buttonY += 48;
+    }
+  }
+
+  /**
+   * Show Barracks panel (combat unit production + upgrades)
+   */
+  showBarracksPanel(building) {
+    const queueStatus = building.productionQueue?.getQueueStatus();
+    let infoText = '';
+    if (queueStatus?.isProducing) {
+      infoText = `Training: ${queueStatus.currentUnit} ${Math.floor(queueStatus.progress)}%`;
+    } else if (queueStatus?.queueLength > 0) {
+      infoText = `Queue: ${queueStatus.queueLength}`;
+    }
+    this.buildingInfoText.setText(infoText);
+
+    const upgrades = building.upgrades || {};
+    const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
+    const canProduce = building.canProduce || [];
+    const numButtons = canProduce.length + availableUpgrades.length;
+
+    this.sectionLabel.setText('Train Units & Upgrades:');
+    let buttonY = this.resizePanel(numButtons, infoText !== '');
+
+    // Unit production buttons
+    if (canProduce.includes('guard')) {
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        'Train Guard', '75🌾 25💧 50🪵 2🔧',
+        '🛡️', () => this.trainUnit('guard')
+      ));
+      buttonY += 48;
+    }
+    if (canProduce.includes('scout')) {
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        'Train Scout', '40🌾 30💧 20🪵 1🔧',
+        '🏹', () => this.trainUnit('scout')
+      ));
+      buttonY += 48;
+    }
+    if (canProduce.includes('spy')) {
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        'Train Spy', '60🌾 40💧 30🪵 3🔧',
+        '🕵️', () => this.trainUnit('spy')
+      ));
+      buttonY += 48;
+    }
+
+    // Upgrade buttons
+    for (const [key, upgrade] of availableUpgrades) {
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        upgrade.name, this.formatUpgradeCost(upgrade.cost),
+        '⬆️', () => this.purchaseUpgrade(key)
+      ));
+      buttonY += 48;
+    }
+  }
+
+  /**
+   * Show Factory panel (tool production + upgrades)
+   */
+  showFactoryPanel(building) {
+    const status = building.getProductionStatus?.() || {};
+    let infoText = '';
+    if (status.isProducing) {
+      infoText = `Producing: ${Math.floor(status.progress)}% | Queue: ${status.queue}`;
+    } else if (status.queue > 0) {
+      infoText = `Queue: ${status.queue}`;
+    } else if (status.autoProduction) {
+      infoText = 'Auto-production enabled';
+    }
+    this.buildingInfoText.setText(infoText);
+
+    const upgrades = building.upgrades || {};
+    const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
+    const hasBatch = upgrades.BATCH_PRODUCTION?.purchased;
+    const numButtons = 1 + (hasBatch ? 1 : 0) + availableUpgrades.length;
+
+    this.sectionLabel.setText('Tool Production & Upgrades:');
+    let buttonY = this.resizePanel(numButtons, infoText !== '');
+
+    // Make Tool button
+    const cost = building.sticksPerTool || 5;
+    this.dynamicButtons.push(this.createDynamicButton(
+      this.panelX + 10, buttonY,
+      'Make Tool', `${cost}🪵 → 1🔧`,
+      '🔧', () => this.makeTools()
+    ));
+    buttonY += 48;
+
+    // Batch Production button (if unlocked)
+    if (hasBatch) {
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        'Make Batch (5)', '20🪵 → 5🔧',
+        '🔧🔧', () => this.makeBatchTools()
+      ));
+      buttonY += 48;
+    }
+
+    // Upgrade buttons
+    for (const [key, upgrade] of availableUpgrades) {
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        upgrade.name, this.formatUpgradeCost(upgrade.cost),
+        '⬆️', () => this.purchaseUpgrade(key)
+      ));
+      buttonY += 48;
+    }
+  }
+
+  /**
+   * Show Research Center panel (research upgrades)
+   */
+  showResearchCenterPanel(building) {
+    const status = building.getResearchStatus?.() || {};
+    let infoText = '';
+    if (status.isResearching) {
+      infoText = `Researching: ${status.upgradeName} ${Math.floor(status.progress)}%`;
+    } else {
+      const completed = Object.values(status.upgrades || {}).filter(u => u.researched).length;
+      const total = Object.keys(status.upgrades || {}).length;
+      infoText = `Completed: ${completed}/${total}`;
+    }
+    this.buildingInfoText.setText(infoText);
+
+    const upgrades = status.upgrades || {};
+    const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.researched);
+    const numButtons = availableUpgrades.length;
+
+    this.sectionLabel.setText('Research Available:');
+    let buttonY = this.resizePanel(Math.min(numButtons, 6), true); // Max 6 visible
+
+    // Research buttons (limited to prevent overflow)
+    let count = 0;
+    for (const [key, upgrade] of availableUpgrades) {
+      if (count >= 6) break; // Limit visible buttons
+      const isResearching = status.isResearching && status.currentResearch === key;
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        upgrade.name, isResearching ? `${Math.floor(status.progress)}%...` : this.formatUpgradeCost(upgrade.cost),
+        '🔬', () => this.startResearch(key),
+        isResearching
+      ));
+      buttonY += 48;
+      count++;
+    }
+  }
+
+  /**
+   * Show Watchtower panel (defense info + upgrades)
+   */
+  showWatchtowerPanel(building) {
+    const status = building.getUpgradeStatus?.() || {};
+    this.buildingInfoText.setText(`Range: ${status.attackRange || 200}px | Vision: ${status.visionRange || 12} tiles`);
+
+    const upgrades = building.upgrades || {};
+    const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
+
+    this.sectionLabel.setText('Upgrades:');
+    let buttonY = this.resizePanel(availableUpgrades.length, true);
+
+    for (const [key, upgrade] of availableUpgrades) {
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        upgrade.name, this.formatUpgradeCost(upgrade.cost),
+        '⬆️', () => this.purchaseUpgrade(key)
+      ));
+      buttonY += 48;
+    }
+  }
+
+  /**
+   * Show Mine panel (stone production info + upgrades)
+   */
+  showMinePanel(building) {
+    const status = building.getUpgradeStatus?.() || {};
+    const statusText = building.getStatusText?.() || '';
+    this.buildingInfoText.setText(statusText || `Mining ${status.gatherAmount || 0} stone every ${(status.gatherInterval || 5000) / 1000}s`);
+
+    const upgrades = building.upgrades || {};
+    const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
+
+    this.sectionLabel.setText('Upgrades:');
+    let buttonY = this.resizePanel(availableUpgrades.length, true);
+
+    for (const [key, upgrade] of availableUpgrades) {
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        upgrade.name, this.formatUpgradeCost(upgrade.cost),
+        '⬆️', () => this.purchaseUpgrade(key)
+      ));
+      buttonY += 48;
+    }
+  }
+
+  /**
+   * Show Power Station panel (tool generation + upgrades)
+   */
+  showPowerStationPanel(building) {
+    const status = building.getUpgradeStatus?.() || {};
+    this.buildingInfoText.setText(`Generating ${status.toolsPerCycle || 1} tool every ${(status.generateInterval || 10000) / 1000}s`);
+
+    const upgrades = building.upgrades || {};
+    const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
+
+    this.sectionLabel.setText('Upgrades:');
+    let buttonY = this.resizePanel(availableUpgrades.length, true);
+
+    for (const [key, upgrade] of availableUpgrades) {
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        upgrade.name, this.formatUpgradeCost(upgrade.cost),
+        '⬆️', () => this.purchaseUpgrade(key)
+      ));
+      buttonY += 48;
+    }
+  }
+
+  /**
+   * Show Resource Storage panel (storage info)
+   */
+  showResourceStoragePanel(building) {
+    const status = building.getStorageStatus?.() || {};
+    const bonusText = status.storageBonus > 0 ? ` (+${status.storageBonus} bonus)` : '';
+    this.buildingInfoText.setText(`Storage: +${status.baseBonus || 100} capacity${bonusText}`);
+
+    this.sectionLabel.setText('');
+    this.resizePanel(0, true);
+  }
+
+  /**
+   * Purchase an upgrade for the selected building
+   */
+  purchaseUpgrade(upgradeKey) {
+    if (!this.selectedBuilding) return;
+
+    const success = this.selectedBuilding.purchaseUpgrade?.(upgradeKey);
+    if (success) {
+      console.log(`UIScene: Purchased upgrade ${upgradeKey}`);
+      // Refresh the panel to show updated state
+      this.showBuildingPanel(this.selectedBuilding);
+    }
+  }
+
+  /**
+   * Make batch tools at Factory
+   */
+  makeBatchTools() {
+    if (!this.selectedBuilding || this.selectedBuilding.buildingType !== 'FACTORY') return;
+
+    const success = this.selectedBuilding.queueBatchProduction?.();
+    if (success) {
+      console.log('UIScene: Batch tool production queued');
+    }
   }
 
   /**
@@ -1072,6 +1409,7 @@ export default class UIScene extends Phaser.Scene {
    */
   hideBuildingPanel() {
     this.selectedBuilding = null;
+    this.clearDynamicButtons();
     this.buildingPanelContainer.setVisible(false);
   }
 
@@ -1102,6 +1440,38 @@ export default class UIScene extends Phaser.Scene {
       console.log(`UIScene: Added ${unitType} to production queue`);
     } else {
       console.log(`UIScene: Failed to add ${unitType} to queue (insufficient resources or queue full)`);
+    }
+  }
+
+  /**
+   * Queue tool production at Factory
+   */
+  makeTools() {
+    console.log('UIScene: Make Tools clicked');
+
+    if (!this.selectedBuilding || this.selectedBuilding.buildingType !== 'FACTORY') {
+      return;
+    }
+
+    const success = this.selectedBuilding.queueToolProduction();
+    if (success) {
+      console.log('UIScene: Tool production queued');
+    }
+  }
+
+  /**
+   * Start research at Research Center
+   */
+  startResearch(upgradeKey) {
+    console.log(`UIScene: Starting research ${upgradeKey}`);
+
+    if (!this.selectedBuilding || this.selectedBuilding.buildingType !== 'RESEARCH_CENTER') {
+      return;
+    }
+
+    const success = this.selectedBuilding.startResearch(upgradeKey);
+    if (success) {
+      console.log(`UIScene: Research ${upgradeKey} started`);
     }
   }
 

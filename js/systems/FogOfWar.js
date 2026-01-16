@@ -197,11 +197,12 @@ export default class FogOfWar {
 
     const camera = this.scene.cameras.main;
 
-    // Get camera world bounds
+    // Get camera world bounds (accounting for zoom)
+    const zoom = camera.zoom || 1;
     const camX = camera.scrollX;
     const camY = camera.scrollY;
-    const camWidth = camera.width;
-    const camHeight = camera.height;
+    const camWidth = camera.width / zoom;
+    const camHeight = camera.height / zoom;
 
     // For isometric maps, we need to check a diamond-shaped area
     // Simplified approach: check all tiles within a reasonable range of camera center
@@ -212,29 +213,40 @@ export default class FogOfWar {
     const centerGrid = worldToGridInt(camCenterX, camCenterY);
 
     // Calculate how many tiles we need to check in each direction
-    // For a 1280x720 viewport, we might need ~40 tiles in each direction
-    const tileRange = 50; // Generous range
+    // At minimum zoom (0.25), we can see 4x more area, so need larger range
+    const baseRange = 60;
+    const tileRange = Math.ceil(baseRange / zoom);
 
-    const gridBounds = {
-      minX: Math.max(0, centerGrid.x - tileRange),
-      maxX: Math.min(MAP.GRID_WIDTH, centerGrid.x + tileRange),
-      minY: Math.max(0, centerGrid.y - tileRange),
-      maxY: Math.min(MAP.GRID_HEIGHT, centerGrid.y + tileRange)
+    // Extended bounds to cover tiles even outside map (we'll draw black for those)
+    const extendedBounds = {
+      minX: centerGrid.x - tileRange,
+      maxX: centerGrid.x + tileRange,
+      minY: centerGrid.y - tileRange,
+      maxY: centerGrid.y + tileRange
     };
 
-    // Draw fog tiles
-    for (let gridY = gridBounds.minY; gridY < gridBounds.maxY; gridY++) {
-      for (let gridX = gridBounds.minX; gridX < gridBounds.maxX; gridX++) {
-        const fogLevel = this.fogState[gridY][gridX];
+    // Draw fog tiles (including out-of-bounds areas which get full black)
+    for (let gridY = extendedBounds.minY; gridY < extendedBounds.maxY; gridY++) {
+      for (let gridX = extendedBounds.minX; gridX < extendedBounds.maxX; gridX++) {
+        // Check if this tile is outside the valid map bounds
+        const isOutOfBounds = gridX < 0 || gridX >= MAP.GRID_WIDTH ||
+                              gridY < 0 || gridY >= MAP.GRID_HEIGHT;
 
-        if (fogLevel === 0) {
-          // Unexplored - black overlay
-          this.drawFogTile(gridX, gridY, 0x000000, 0.9);
-        } else if (fogLevel === 1) {
-          // Explored but not visible - dark translucent shadow
-          this.drawFogTile(gridX, gridY, 0x000000, 0.4);
+        if (isOutOfBounds) {
+          // Outside map bounds - solid black
+          this.drawFogTile(gridX, gridY, 0x000000, 1.0);
+        } else {
+          const fogLevel = this.fogState[gridY][gridX];
+
+          if (fogLevel === 0) {
+            // Unexplored - black overlay
+            this.drawFogTile(gridX, gridY, 0x000000, 0.9);
+          } else if (fogLevel === 1) {
+            // Explored but not visible - dark translucent shadow
+            this.drawFogTile(gridX, gridY, 0x000000, 0.4);
+          }
+          // fogLevel === 2 means currently visible - no overlay
         }
-        // fogLevel === 2 means currently visible - no overlay
       }
     }
   }

@@ -26,12 +26,17 @@ export default class Goose extends Unit {
       tools: 0
     };
     this.inventoryMax = UNIT.INVENTORY_MAX;
+    this.baseInventoryMax = UNIT.INVENTORY_MAX;
     this.targetResource = null;
     this.homeBase = null; // Will be set to nearest building
 
     // Gathering timer
     this.gatherTimer = 0;
     this.gatherDuration = UNIT.GATHER_DURATION;
+    this.baseGatherDuration = UNIT.GATHER_DURATION;
+
+    // Apply worker-specific research bonuses at spawn
+    this.applyWorkerBonuses();
 
     // Pending gather flag (set when moving to resource)
     this.pendingGatherStart = false;
@@ -671,5 +676,39 @@ export default class Goose extends Unit {
     }
 
     super.setState(newState);
+  }
+
+  /**
+   * Apply worker-specific bonuses at spawn
+   */
+  applyWorkerBonuses() {
+    // Only apply for player faction
+    if (this.faction !== FACTIONS.PLAYER) return;
+
+    // Check for building upgrades (Coop's Large Nests)
+    if (this.scene.buildingUpgrades?.largeNests) {
+      this.applyCarryBonus(10);
+    }
+
+    // Check for research upgrades (Efficient Gathering)
+    if (this.scene.researchUpgrades?.efficientGathering) {
+      this.applyGatheringBonus(1.25); // 25% faster
+    }
+  }
+
+  /**
+   * Apply carry capacity bonus (e.g., from Large Nests upgrade)
+   */
+  applyCarryBonus(amount) {
+    this.inventoryMax = this.baseInventoryMax + amount;
+    console.log(`Goose: Carry capacity increased to ${this.inventoryMax}`);
+  }
+
+  /**
+   * Apply gathering speed bonus (e.g., from Efficient Gathering research)
+   */
+  applyGatheringBonus(multiplier) {
+    this.gatherDuration = Math.floor(this.baseGatherDuration / multiplier);
+    console.log(`Goose: Gather duration reduced to ${this.gatherDuration}ms`);
   }
 }
