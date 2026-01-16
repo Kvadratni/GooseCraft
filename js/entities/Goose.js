@@ -83,6 +83,19 @@ export default class Goose extends CombatUnit {
       this.updateReturningBehavior(delta);
     } else if (this.state === UNIT_STATES.CONSTRUCTING) {
       this.updateConstructing(delta);
+    } else if (this.state === UNIT_STATES.MOVING && this.pendingGatherStart) {
+      // Check if target resource was depleted while moving to it
+      if (!this.targetResource || !this.targetResource.hasResources()) {
+        console.log('Goose: Target resource depleted while moving, finding new resource');
+        this.pendingGatherStart = false;
+        const resourceType = this.targetResource ? this.targetResource.getResourceType() : null;
+        this.targetResource = null;
+        if (resourceType) {
+          this.findAndGatherNearestResource(resourceType);
+        } else {
+          this.setState(UNIT_STATES.IDLE);
+        }
+      }
     }
 
     // Check if carrying resources and near any friendly building - deposit automatically
@@ -90,17 +103,27 @@ export default class Goose extends CombatUnit {
     if (totalResources > 0) {
       const nearbyBuilding = this.findNearbyDepositBuilding();
       if (nearbyBuilding) {
-        console.log(`Goose: Near building ${nearbyBuilding.buildingName}, depositing ${totalResources} resources`);
-        this.pendingReturnToBase = false;
-        this.depositResources();
-        // If was returning to base, continue gathering
-        if (this.state === UNIT_STATES.RETURNING || this.state === UNIT_STATES.MOVING) {
-          if (this.targetResource && this.targetResource.hasResources()) {
-            this.gatherFrom(this.targetResource);
-          } else if (this.targetResource) {
-            this.findAndGatherNearestResource(this.targetResource.getResourceType());
-          } else {
+        // Check if there's storage space for any resource we're carrying
+        const hasSpace = this.hasStorageSpaceForInventory();
+        if (hasSpace) {
+          console.log(`Goose: Near building ${nearbyBuilding.buildingName}, depositing ${totalResources} resources`);
+          this.pendingReturnToBase = false;
+          this.depositResources();
+          // If was returning to base, continue gathering
+          if (this.state === UNIT_STATES.RETURNING || this.state === UNIT_STATES.MOVING) {
+            if (this.targetResource && this.targetResource.hasResources()) {
+              this.gatherFrom(this.targetResource);
+            } else if (this.targetResource) {
+              this.findAndGatherNearestResource(this.targetResource.getResourceType());
+            } else {
+              this.setState(UNIT_STATES.IDLE);
+            }
+          }
+        } else {
+          // Storage full - wait here
+          if (this.state === UNIT_STATES.MOVING || this.state === UNIT_STATES.RETURNING) {
             this.setState(UNIT_STATES.IDLE);
+            this.pendingReturnToBase = false;
           }
         }
       }
@@ -108,6 +131,23 @@ export default class Goose extends CombatUnit {
 
     // Update status text
     this.updateStatusDisplay();
+  }
+
+  /**
+   * Check if there's storage space for any resource in inventory
+   */
+  hasStorageSpaceForInventory() {
+    // For player faction, check resource manager
+    if (this.faction === FACTIONS.PLAYER && this.scene.resourceManager) {
+      // Check if any resource we're carrying has storage space
+      if (this.inventory.food > 0 && this.scene.resourceManager.hasStorageSpaceFor('food')) return true;
+      if (this.inventory.water > 0 && this.scene.resourceManager.hasStorageSpaceFor('water')) return true;
+      if (this.inventory.sticks > 0 && this.scene.resourceManager.hasStorageSpaceFor('sticks')) return true;
+      if (this.inventory.tools > 0 && this.scene.resourceManager.hasStorageSpaceFor('tools')) return true;
+      return false;
+    }
+    // AI doesn't have storage limits for now
+    return true;
   }
 
   /**
@@ -163,6 +203,21 @@ export default class Goose extends CombatUnit {
         // Moving to building
         this.statusText.setText(`→ 🔨 ${this.targetBuilding.buildingName}`);
         this.statusText.setVisible(true);
+      } else {
+        this.statusText.setVisible(false);
+      }
+    } else if (this.state === UNIT_STATES.IDLE) {
+      const total = this.inventory.food + this.inventory.water + this.inventory.sticks + this.inventory.tools;
+      if (total > 0) {
+        // Idle with resources - likely waiting for storage space
+        const nearbyBuilding = this.findNearbyDepositBuilding();
+        if (nearbyBuilding && !this.hasStorageSpaceForInventory()) {
+          this.statusText.setText(`⏳ Storage Full`);
+          this.statusText.setVisible(true);
+        } else {
+          this.statusText.setText(`📦 ${total}`);
+          this.statusText.setVisible(true);
+        }
       } else {
         this.statusText.setVisible(false);
       }
@@ -295,6 +350,23 @@ export default class Goose extends CombatUnit {
   }
 
   /**
+   * Check if a resource is inside a building (unreachable)
+   */
+  isResourceInsideBuilding(resourceNode) {
+    if (!this.scene.buildings) return false;
+
+    for (const building of this.scene.buildings) {
+      if (!building.active) continue;
+      const dist = Phaser.Math.Distance.Between(resourceNode.x, resourceNode.y, building.x, building.y);
+      // If resource is within building's collision radius, it's inside
+      if (dist < building.size * 0.5) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Command to gather from a resource node
    */
   gatherFrom(resourceNode) {
@@ -302,6 +374,13 @@ export default class Goose extends CombatUnit {
 
     if (!resourceNode || !resourceNode.hasResources()) {
       console.log('Goose: Resource not available');
+      return;
+    }
+
+    // Check if resource is inside a building (unreachable)
+    if (this.isResourceInsideBuilding(resourceNode)) {
+      console.log('Goose: Resource is inside a building, finding another');
+      this.findAndGatherNearestResource(resourceNode.getResourceType());
       return;
     }
 
@@ -524,10 +603,11 @@ export default class Goose extends CombatUnit {
   }
 
   /**
-   * Find an adjacent walkable tile near a world position
+   * Find an adjacent walkable tile near a world position (uses pathfinding grid)
    */
   findAdjacentWalkableTile(worldX, worldY) {
     const centerGrid = worldToGridInt(worldX, worldY);
+    const grid = this.scene.isometricMap.getPathfindingGrid();
 
     // Search in expanding circles around the target (up to 4 tiles away for 3x3 buildings)
     const searchOffsets = [
@@ -551,10 +631,12 @@ export default class Goose extends CombatUnit {
       const testX = centerGrid.x + offset.dx;
       const testY = centerGrid.y + offset.dy;
 
-      if (this.scene.isometricMap.isWalkable(testX, testY)) {
-        const worldPos = this.scene.isometricMap.getWorldPosCenter(testX, testY);
-        console.log(`Goose: Found walkable tile at grid (${testX}, ${testY}), world (${Math.round(worldPos.x)}, ${Math.round(worldPos.y)})`);
-        return worldPos;
+      // Check bounds and pathfinding grid (0 = walkable)
+      if (testY >= 0 && testY < grid.length && testX >= 0 && testX < grid[0].length) {
+        if (grid[testY][testX] === 0) {
+          const worldPos = this.scene.isometricMap.getWorldPosCenter(testX, testY);
+          return worldPos;
+        }
       }
     }
 

@@ -206,11 +206,21 @@ export default class GameScene extends Phaser.Scene {
         const gridX = Math.floor(Math.random() * MAP.GRID_WIDTH);
         const gridY = Math.floor(Math.random() * MAP.GRID_HEIGHT);
 
+        // Check distance from player base
         const distFromBase = Math.sqrt(
           Math.pow(gridX - baseSpawnGridX, 2) +
           Math.pow(gridY - baseSpawnGridY, 2)
         );
         if (distFromBase < 6) continue;
+
+        // Check distance from AI base (spawns at ~0.7, 0.7 of map)
+        const aiBaseGridX = Math.floor(MAP.GRID_WIDTH * 0.7);
+        const aiBaseGridY = Math.floor(MAP.GRID_HEIGHT * 0.7);
+        const distFromAIBase = Math.sqrt(
+          Math.pow(gridX - aiBaseGridX, 2) +
+          Math.pow(gridY - aiBaseGridY, 2)
+        );
+        if (distFromAIBase < 6) continue;
 
         const tile = this.isometricMap.getTile(gridX, gridY);
         if (!tile) continue;
@@ -270,6 +280,15 @@ export default class GameScene extends Phaser.Scene {
         Math.pow(groveCenterY - baseSpawnGridY, 2)
       );
       if (distFromBase < 10) continue;
+
+      // Skip if too close to AI base
+      const aiBaseGridX = Math.floor(MAP.GRID_WIDTH * 0.7);
+      const aiBaseGridY = Math.floor(MAP.GRID_HEIGHT * 0.7);
+      const distFromAIBase = Math.sqrt(
+        Math.pow(groveCenterX - aiBaseGridX, 2) +
+        Math.pow(groveCenterY - aiBaseGridY, 2)
+      );
+      if (distFromAIBase < 10) continue;
 
       // Determine number of trees in this grove
       const treesInGrove = minTreesPerGrove + Math.floor(Math.random() * (maxTreesPerGrove - minTreesPerGrove));

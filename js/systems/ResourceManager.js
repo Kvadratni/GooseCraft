@@ -28,6 +28,26 @@ export default class ResourceManager {
   }
 
   /**
+   * Check if there's storage space for any resource type
+   */
+  hasAnyStorageSpace() {
+    for (const [type, limit] of Object.entries(this.storageLimits)) {
+      if (this.resources[type] < limit) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Check if there's storage space for a specific resource
+   */
+  hasStorageSpaceFor(type) {
+    if (!this.storageLimits.hasOwnProperty(type)) return true;
+    return this.resources[type] < this.storageLimits[type];
+  }
+
+  /**
    * Add resources
    */
   addResources(type, amount) {

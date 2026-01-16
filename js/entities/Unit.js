@@ -264,29 +264,31 @@ export default class Unit extends Phaser.GameObjects.Container {
           return;
         }
 
-        // Use the original final destination if available, otherwise use the last path waypoint
+        // First attempt: skip to next waypoint (might be blocked by current one)
+        if (this.stuckRecoveryAttempts === 1 && this.currentPath.length > this.currentPathIndex + 1) {
+          this.currentPathIndex++;
+          console.log(`Unit: Skipping waypoint, trying next (${this.currentPathIndex}/${this.currentPath.length})`);
+          return;
+        }
+
+        // Second attempt: check if we're close enough to final destination
         if (this.finalDestination) {
-          if (window.gcVerbose) console.log(`Unit: Recalculating path to original destination (${Math.round(this.finalDestination.x)}, ${Math.round(this.finalDestination.y)})`);
-
-          // Clear current path and request new one to ORIGINAL destination
-          this.currentPath = [];
-          this.currentPathIndex = 0;
-
-          // Request fresh path from current position to original destination
-          this.moveTo(this.finalDestination.x, this.finalDestination.y);
-        } else {
-          // Fallback to last waypoint
-          const targetWaypoint = this.currentPath[this.currentPath.length - 1];
-          if (targetWaypoint) {
-            if (window.gcVerbose) console.log(`Unit: Recalculating path to waypoint (${targetWaypoint.x}, ${targetWaypoint.y})`);
+          const distToFinal = Phaser.Math.Distance.Between(this.x, this.y, this.finalDestination.x, this.finalDestination.y);
+          if (distToFinal < 80) {
+            console.log(`Unit: Close enough to destination (${Math.round(distToFinal)}px), considering arrived`);
             this.currentPath = [];
             this.currentPathIndex = 0;
-            const targetWorld = this.scene.isometricMap.getWorldPosCenter(targetWaypoint.x, targetWaypoint.y);
-            this.moveTo(targetWorld.x, targetWorld.y);
-          } else {
-            console.warn('Unit: No target destination, going idle');
             this.setState(UNIT_STATES.IDLE);
+            return;
           }
+
+          // Recalculate path
+          this.currentPath = [];
+          this.currentPathIndex = 0;
+          this.moveTo(this.finalDestination.x, this.finalDestination.y);
+        } else {
+          console.warn('Unit: No target destination, going idle');
+          this.setState(UNIT_STATES.IDLE);
         }
         return;
       }
@@ -304,8 +306,8 @@ export default class Unit extends Phaser.GameObjects.Container {
     const distance = Phaser.Math.Distance.Between(this.x, this.y, targetWorld.x, targetWorld.y);
 
     // Check if reached waypoint
-    // Using 20 pixels threshold - works well with isometric tiles (64x32)
-    if (distance < 20) {
+    // Using 35 pixels threshold for smoother navigation
+    if (distance < 35) {
       this.currentPathIndex++;
       if (window.gcVerbose) console.log(`Unit: Reached waypoint ${this.currentPathIndex}/${this.currentPath.length}`);
 
@@ -666,8 +668,16 @@ export default class Unit extends Phaser.GameObjects.Container {
         if (!building.active) return;
 
         // Allow workers returning to their home base to get close
-        if (this.state === UNIT_STATES.RETURNING && this.homeBase === building) {
-          return;
+        if (this.homeBase === building) {
+          if (this.state === UNIT_STATES.RETURNING) return;
+          if (this.pendingReturnToBase) return;
+        }
+
+        // Allow any unit with resources to approach friendly buildings
+        if (this.inventory && building.faction === this.faction) {
+          const totalResources = (this.inventory.food || 0) + (this.inventory.water || 0) +
+                                 (this.inventory.sticks || 0) + (this.inventory.tools || 0);
+          if (totalResources > 0) return;
         }
 
         // Use smaller collision radius (35% of building size) to allow units closer
