@@ -91,8 +91,19 @@ export default class CombatUnit extends Unit {
     } else {
       // Move toward target (pursue)
       if (this.currentPath.length === 0 || this.currentPathIndex >= this.currentPath.length) {
-        // Recalculate path to target
-        this.moveTo(this.targetEnemy.x, this.targetEnemy.y);
+        // For ranged units, move to attack range instead of directly to target
+        if (this.isRanged && this.attackRange > 0) {
+          // Calculate position at attack range from target
+          const angle = Phaser.Math.Angle.Between(this.targetEnemy.x, this.targetEnemy.y, this.x, this.y);
+          // Stop slightly inside attack range for safety margin
+          const stopDistance = this.attackRange * 0.85;
+          const targetX = this.targetEnemy.x + Math.cos(angle) * stopDistance;
+          const targetY = this.targetEnemy.y + Math.sin(angle) * stopDistance;
+          this.moveTo(targetX, targetY);
+        } else {
+          // Melee units move directly to target
+          this.moveTo(this.targetEnemy.x, this.targetEnemy.y);
+        }
       }
     }
   }

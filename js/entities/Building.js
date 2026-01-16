@@ -46,6 +46,9 @@ export default class Building extends Phaser.GameObjects.Container {
     // Construction progress bar
     this.createProgressBar();
 
+    // Health bar (shown when damaged)
+    this.createHealthBar();
+
     // Add to scene
     scene.add.existing(this);
     this.setDepth(DEPTH.BUILDINGS);
@@ -114,6 +117,56 @@ export default class Building extends Phaser.GameObjects.Container {
       this.progressBg.setVisible(false);
       this.progressFill.setVisible(false);
       this.progressText.setVisible(false);
+    }
+  }
+
+  /**
+   * Create health bar (shown when damaged)
+   */
+  createHealthBar() {
+    const barWidth = this.size;
+    const barHeight = 5;
+    const barY = -this.size / 2 - 20;
+
+    // Background
+    this.healthBarBg = this.scene.add.graphics();
+    this.healthBarBg.fillStyle(0x000000, 0.7);
+    this.healthBarBg.fillRect(-barWidth / 2, barY, barWidth, barHeight);
+    this.add(this.healthBarBg);
+
+    // Fill
+    this.healthBarFill = this.scene.add.graphics();
+    this.add(this.healthBarFill);
+
+    // Initially hidden (only show when damaged)
+    this.healthBarBg.setVisible(false);
+    this.healthBarFill.setVisible(false);
+  }
+
+  /**
+   * Update health bar visibility and fill
+   */
+  updateHealthBar() {
+    const isDamaged = this.currentHealth < this.maxHealth;
+    const isOperational = this.state === BUILDING_STATES.OPERATIONAL;
+
+    // Only show health bar when damaged and operational
+    this.healthBarBg.setVisible(isDamaged && isOperational);
+    this.healthBarFill.setVisible(isDamaged && isOperational);
+
+    if (isDamaged && isOperational) {
+      const barWidth = this.size;
+      const barHeight = 5;
+      const barY = -this.size / 2 - 20;
+
+      this.healthBarFill.clear();
+
+      // Color based on health percentage
+      const healthPercent = this.currentHealth / this.maxHealth;
+      const healthColor = healthPercent > 0.5 ? 0x4CAF50 : (healthPercent > 0.25 ? 0xFFEB3B : 0xF44336);
+
+      this.healthBarFill.fillStyle(healthColor, 1);
+      this.healthBarFill.fillRect(-barWidth / 2, barY, barWidth * healthPercent, barHeight);
     }
   }
 
@@ -207,8 +260,8 @@ export default class Building extends Phaser.GameObjects.Container {
       this.scene.soundManager.playSFX('sfx-building-complete');
     }
 
-    // Notify unlock manager for progression
-    if (this.scene.buildingUnlockManager) {
+    // Notify unlock manager for progression (player buildings only)
+    if (this.scene.buildingUnlockManager && this.faction === FACTIONS.PLAYER) {
       this.scene.buildingUnlockManager.onBuildingCompleted(this.buildingName);
     }
 
@@ -308,6 +361,9 @@ export default class Building extends Phaser.GameObjects.Container {
    */
   takeDamage(amount) {
     this.currentHealth -= amount;
+
+    // Update health bar display
+    this.updateHealthBar();
 
     if (this.currentHealth <= 0) {
       this.currentHealth = 0;

@@ -1,6 +1,6 @@
 // AI Manager - Controls enemy AI faction
 
-import { FACTIONS, UNIT_STATES, MAP, BUILDING } from '../utils/Constants.js';
+import { FACTIONS, UNIT_STATES, BUILDING_STATES, MAP, BUILDING } from '../utils/Constants.js';
 import { worldToGridInt } from '../utils/IsometricUtils.js';
 import Coop from '../buildings/Coop.js';
 import ResourceStorage from '../buildings/ResourceStorage.js';
@@ -216,30 +216,55 @@ export default class AIManager {
    * Manage AI economy
    */
   manageEconomy() {
-    // Assign idle workers to gather resources
+    // Find incomplete buildings that need construction
+    const incompleteBuildings = this.aiBuildings.filter(b =>
+      b.active && b.state === BUILDING_STATES.CONSTRUCTION
+    );
+
+    // Count how many workers are already constructing
+    const constructingWorkers = this.aiWorkers.filter(w =>
+      w.active && w.state === UNIT_STATES.CONSTRUCTING
+    ).length;
+
+    // Limit construction workers (leave some for gathering)
+    const maxConstructionWorkers = Math.min(2, Math.ceil(this.aiWorkers.length / 2));
+
+    // Assign workers to tasks
     this.aiWorkers.forEach(worker => {
       if (!worker.active) return;
-
-      // Check if worker has resources in inventory
-      const hasResources = worker.inventory &&
-        (worker.inventory.food + worker.inventory.water + worker.inventory.sticks + worker.inventory.tools) > 0;
-
-      if (worker.state === UNIT_STATES.IDLE || (worker.state === UNIT_STATES.RETURNING && !hasResources)) {
-        // Find nearest resource
-        const resource = this.findNearestResource(worker);
-        if (resource && resource.hasResources()) {
-          worker.gatherFrom(resource);
-        }
-      }
 
       // Ensure workers deposit to AI base
       if (!worker.homeBase || worker.homeBase !== this.aiBase) {
         worker.homeBase = this.aiBase;
       }
-    });
 
-    // Collect resources from workers returning to base
-    // (This happens automatically via worker's depositResources, but we track it here)
+      // Check if worker has resources in inventory
+      const hasResources = worker.inventory &&
+        (worker.inventory.food + worker.inventory.water + worker.inventory.sticks + worker.inventory.tools) > 0;
+
+      // Priority 1: Assign idle workers to construction (if buildings need it)
+      if (worker.state === UNIT_STATES.IDLE && incompleteBuildings.length > 0) {
+        // Check if we need more construction workers
+        const currentConstructing = this.aiWorkers.filter(w =>
+          w.active && (w.state === UNIT_STATES.CONSTRUCTING || w.targetBuilding)
+        ).length;
+
+        if (currentConstructing < maxConstructionWorkers) {
+          const targetBuilding = incompleteBuildings[0];
+          worker.buildConstruction(targetBuilding);
+          if (window.gcVerbose) console.log(`AIManager: Assigned worker to construct ${targetBuilding.buildingName}`);
+          return;
+        }
+      }
+
+      // Priority 2: Assign idle workers to gather resources
+      if (worker.state === UNIT_STATES.IDLE || (worker.state === UNIT_STATES.RETURNING && !hasResources)) {
+        const resource = this.findNearestResource(worker);
+        if (resource && resource.hasResources()) {
+          worker.gatherFrom(resource);
+        }
+      }
+    });
   }
 
   /**

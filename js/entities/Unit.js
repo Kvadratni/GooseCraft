@@ -44,6 +44,10 @@ export default class Unit extends Phaser.GameObjects.Container {
     this.spriteKey = config.spriteKey || 'civilian';
     this.size = config.size || 32;
 
+    // Collision properties
+    this.collisionRadius = this.size / 2;
+    this.isAerial = false; // Override in aerial units (Maverick)
+
     // Create sprite
     this.sprite = scene.add.sprite(0, 0, this.spriteKey);
     this.sprite.setDisplaySize(this.size, this.size);
@@ -161,6 +165,9 @@ export default class Unit extends Phaser.GameObjects.Container {
         this.updateAttacking(delta);
         break;
     }
+
+    // Resolve collisions with other units and buildings
+    this.resolveCollisions();
 
     // Update depth for proper layering
     this.updateDepth();
@@ -620,6 +627,59 @@ export default class Unit extends Phaser.GameObjects.Container {
     }
     if (upgrades.efficientGathering && this.unitType === 'worker') {
       this.applyGatheringBonus(1.5);
+    }
+  }
+
+  /**
+   * Resolve collisions with other units and buildings
+   */
+  resolveCollisions() {
+    const pushStrength = 0.5; // How strongly to push apart (0-1)
+
+    // Check collision with other units
+    if (this.scene.units) {
+      this.scene.units.forEach(other => {
+        if (!other.active || other === this) return;
+
+        // Aerial units only collide with other aerial units
+        if (this.isAerial !== other.isAerial) return;
+
+        const dist = Phaser.Math.Distance.Between(this.x, this.y, other.x, other.y);
+        const minDist = this.collisionRadius + other.collisionRadius;
+
+        if (dist < minDist && dist > 0) {
+          // Calculate push direction (away from other unit)
+          const angle = Phaser.Math.Angle.Between(other.x, other.y, this.x, this.y);
+          const overlap = minDist - dist;
+          const pushDist = overlap * pushStrength;
+
+          // Push this unit away
+          this.x += Math.cos(angle) * pushDist;
+          this.y += Math.sin(angle) * pushDist;
+        }
+      });
+    }
+
+    // Ground units also collide with buildings
+    if (!this.isAerial && this.scene.buildings) {
+      this.scene.buildings.forEach(building => {
+        if (!building.active) return;
+
+        // Use building size for collision radius
+        const buildingRadius = building.size / 2;
+        const dist = Phaser.Math.Distance.Between(this.x, this.y, building.x, building.y);
+        const minDist = this.collisionRadius + buildingRadius;
+
+        if (dist < minDist && dist > 0) {
+          // Push unit away from building (building doesn't move)
+          const angle = Phaser.Math.Angle.Between(building.x, building.y, this.x, this.y);
+          const overlap = minDist - dist;
+
+          // Push fully out of building
+          this.x += Math.cos(angle) * overlap;
+          this.y += Math.sin(angle) * overlap;
+        }
+      });
     }
   }
 
