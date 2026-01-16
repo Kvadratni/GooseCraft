@@ -23,6 +23,7 @@ export default class Farm extends Building {
     this.gatherTimer = 0;
     this.gatherInterval = 6000; // Harvest every 6 seconds
     this.gatherAmount = 8; // Food per harvest
+    this.isPaused = false; // Can pause/resume production
 
     // Upgrades
     this.upgrades = {
@@ -49,7 +50,7 @@ export default class Farm extends Building {
   update(time, delta) {
     super.update(time, delta);
 
-    if (this.state !== 'OPERATIONAL') {
+    if (this.state !== 'OPERATIONAL' || this.isPaused || this.isSabotaged) {
       return;
     }
 
@@ -60,6 +61,15 @@ export default class Farm extends Building {
       this.gatherTimer = 0;
       this.generateFood();
     }
+  }
+
+  /**
+   * Toggle production pause state
+   */
+  togglePause() {
+    this.isPaused = !this.isPaused;
+    console.log(`Farm: Production ${this.isPaused ? 'paused' : 'resumed'}`);
+    return this.isPaused;
   }
 
   /**
@@ -124,7 +134,8 @@ export default class Farm extends Building {
     return {
       upgrades: this.upgrades,
       gatherAmount: this.gatherAmount,
-      gatherInterval: this.gatherInterval
+      gatherInterval: this.gatherInterval,
+      isPaused: this.isPaused
     };
   }
 
@@ -139,6 +150,9 @@ export default class Farm extends Building {
    * Get status text for UI
    */
   getStatusText() {
+    if (this.isPaused) {
+      return `PAUSED - ${this.gatherAmount} food/${this.gatherInterval/1000}s`;
+    }
     return `Producing ${this.gatherAmount} food/${this.gatherInterval/1000}s`;
   }
 }

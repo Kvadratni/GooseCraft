@@ -19,6 +19,9 @@ export default class UIScene extends Phaser.Scene {
     // Selected building
     this.selectedBuilding = null;
 
+    // Selected unit (for ability panels like Spy)
+    this.selectedUnit = null;
+
     // Debug mode
     this.debugMode = false;
 
@@ -37,7 +40,7 @@ export default class UIScene extends Phaser.Scene {
     this.createBuildMenu();
     this.createMinimap();
     this.createBuildingPanel();
-    this.createDebugToggle();
+    // Debug toggle removed - use keyboard shortcut in GameScene if needed
     this.createSettingsPanel();
 
     // Listen for resize events
@@ -75,20 +78,15 @@ export default class UIScene extends Phaser.Scene {
     }
 
     // Update build menu position
-    if (this.buildMenuBg) {
+    if (this.buildMenuContainer) {
       const menuWidth = 215;
       const menuY = 45;
-      const menuHeight = (this.screenHeight - menuY - 10) * 0.65;
       const menuX = this.screenWidth - menuWidth - 5;
 
       this.buildMenuX = menuX;
       this.buildMenuY = menuY;
       this.buildMenuWidth = menuWidth;
-      this.buildMenuHeight = menuHeight;
-      this.buildMenuBg.x = menuX + menuWidth / 2;
-      this.buildMenuBg.y = menuY + menuHeight / 2;
-      this.buildMenuBg.setDisplaySize(menuWidth, menuHeight);
-      // Refresh build menu buttons
+      // Refresh build menu buttons (will recalculate height)
       this.updateBuildMenu();
     }
 
@@ -122,13 +120,6 @@ export default class UIScene extends Phaser.Scene {
       this.minimapTerrainCached = false; // Force terrain redraw
     }
 
-    // Update debug button position
-    if (this.debugButton) {
-      this.debugButton.x = this.screenWidth - 240;
-      this.debugButton.y = this.screenHeight - 50;
-      this.debugButtonText.x = this.screenWidth - 190;
-      this.debugButtonText.y = this.screenHeight - 35;
-    }
 
     // Update settings button position
     if (this.settingsButton) {
@@ -164,6 +155,15 @@ export default class UIScene extends Phaser.Scene {
       if (this.panelAffordabilityTimer > 1000) {
         this.showBuildingPanel(this.selectedBuilding);
         this.panelAffordabilityTimer = 0;
+      }
+    }
+
+    // Update unit panel (Spy abilities) every second to show cooldown changes
+    if (this.buildingPanelContainer?.visible && this.selectedUnit) {
+      this.unitPanelRefreshTimer = (this.unitPanelRefreshTimer || 0) + delta;
+      if (this.unitPanelRefreshTimer > 1000) {
+        this.showUnitPanel(this.selectedUnit);
+        this.unitPanelRefreshTimer = 0;
       }
     }
 
@@ -267,25 +267,39 @@ export default class UIScene extends Phaser.Scene {
   }
 
   /**
-   * Create build menu on the right side
+   * Create build menu on the right side using segmented images (top/middle/bottom)
    */
   createBuildMenu() {
-    // Build menu image: 343x917, sized to fit content (not full height)
+    // Build menu segments for dynamic sizing
     const menuWidth = 215;
     const menuY = 45; // Below top bar
-    const menuHeight = (this.screenHeight - menuY - 10) * 0.65; // 65% of available height
     const menuX = this.screenWidth - menuWidth - 5;
+
+    // Segment heights (will be determined from images or set manually)
+    this.buildMenuTopHeight = 60;    // Header section
+    this.buildMenuMiddleHeight = 58; // Repeating middle section (per button)
+    this.buildMenuBottomHeight = 50; // Footer section
 
     // Store menu position
     this.buildMenuX = menuX;
     this.buildMenuY = menuY;
     this.buildMenuWidth = menuWidth;
-    this.buildMenuHeight = menuHeight;
 
-    // Background image (already has "Build Menu" header)
-    this.buildMenuBg = this.add.image(menuX + menuWidth / 2, menuY + menuHeight / 2, 'ui-build-menu');
-    this.buildMenuBg.setDisplaySize(menuWidth, menuHeight);
-    this.buildMenuBg.setDepth(1000);
+    // Create container for all menu segments
+    this.buildMenuContainer = this.add.container(0, 0);
+    this.buildMenuContainer.setDepth(1000);
+
+    // Create segment images (will be positioned in updateBuildMenu)
+    this.buildMenuTop = this.add.image(0, 0, 'ui-build-menu-top');
+    this.buildMenuTop.setOrigin(0.5, 0);
+    this.buildMenuContainer.add(this.buildMenuTop);
+
+    // Middle segments array (will grow/shrink based on content)
+    this.buildMenuMiddles = [];
+
+    this.buildMenuBottom = this.add.image(0, 0, 'ui-build-menu-bottom');
+    this.buildMenuBottom.setOrigin(0.5, 0);
+    this.buildMenuContainer.add(this.buildMenuBottom);
 
     // Store build buttons for updating
     this.buildButtons = [];
@@ -299,7 +313,7 @@ export default class UIScene extends Phaser.Scene {
    */
   updateBuildMenu() {
     // Check if build menu has been created yet
-    if (!this.buildButtons) {
+    if (!this.buildButtons || !this.buildMenuContainer) {
       return;  // Menu not initialized yet
     }
 
@@ -313,6 +327,10 @@ export default class UIScene extends Phaser.Scene {
     });
     this.buildButtons = [];
 
+    // Clear old middle segments
+    this.buildMenuMiddles.forEach(segment => segment.destroy());
+    this.buildMenuMiddles = [];
+
     const gameScene = this.scene.get('GameScene');
     if (!gameScene || !gameScene.buildingUnlockManager) {
       return;
@@ -320,7 +338,6 @@ export default class UIScene extends Phaser.Scene {
 
     const unlockManager = gameScene.buildingUnlockManager;
     const resourceManager = gameScene.resourceManager;
-    let yOffset = 85; // Start well below the "Build Menu" header in the image
 
     // Build button icons for each building type
     const buildingIcons = {
@@ -332,29 +349,53 @@ export default class UIScene extends Phaser.Scene {
       'WATCHTOWER': '🗼',
       'POWER_STATION': '⚡',
       'MINE': '⛏️',
-      'AIRSTRIP': '✈️'
+      'AIRSTRIP': '✈️',
+      'FARM': '🌾',
+      'WELL': '💧',
+      'LUMBER_MILL': '🪵'
     };
 
-    // Go through all buildings - only show unlocked ones
+    // First pass: count unlocked buildings to size the menu
+    let unlockedBuildings = [];
     for (const buildingKey in BUILDING) {
       const building = BUILDING[buildingKey];
-
-      // Skip non-buildable buildings
-      if (!building.buildable) {
-        continue;
-      }
-
-      // Only show unlocked buildings (hidden until unlocked)
+      if (!building.buildable) continue;
       const isUnlocked = unlockManager.isBuildingUnlocked(buildingKey);
-      if (!isUnlocked) {
-        continue; // Skip locked buildings entirely
-      }
+      if (!isUnlocked) continue;
+      unlockedBuildings.push({ key: buildingKey, config: building });
+    }
 
-      // Check if player can afford it
+    const numButtons = unlockedBuildings.length;
+    const menuCenterX = this.buildMenuX + this.buildMenuWidth / 2;
+
+    // Position and size top segment
+    this.buildMenuTop.setPosition(menuCenterX, this.buildMenuY);
+    this.buildMenuTop.setDisplaySize(this.buildMenuWidth, this.buildMenuTopHeight);
+
+    // Create middle segments based on button count
+    let currentY = this.buildMenuY + this.buildMenuTopHeight;
+    for (let i = 0; i < numButtons; i++) {
+      const middleSegment = this.add.image(menuCenterX, currentY, 'ui-build-menu-middle');
+      middleSegment.setOrigin(0.5, 0);
+      middleSegment.setDisplaySize(this.buildMenuWidth, this.buildMenuMiddleHeight);
+      middleSegment.setDepth(1000);
+      this.buildMenuMiddles.push(middleSegment);
+      currentY += this.buildMenuMiddleHeight;
+    }
+
+    // Position bottom segment
+    this.buildMenuBottom.setPosition(menuCenterX, currentY);
+    this.buildMenuBottom.setDisplaySize(this.buildMenuWidth, this.buildMenuBottomHeight);
+
+    // Calculate total menu height
+    this.buildMenuHeight = this.buildMenuTopHeight + (numButtons * this.buildMenuMiddleHeight) + this.buildMenuBottomHeight;
+
+    // Second pass: create buttons
+    let yOffset = this.buildMenuTopHeight + 1; // Start just below header
+    for (const { key: buildingKey, config: building } of unlockedBuildings) {
       const canAfford = resourceManager ? resourceManager.canAfford(building.cost) : true;
       const btnY = this.buildMenuY + yOffset;
 
-      // Create button (grey out if can't afford)
       const button = this.createBuildButton(
         this.buildMenuX + 8,
         btnY,
@@ -362,11 +403,11 @@ export default class UIScene extends Phaser.Scene {
         building.cost,
         buildingIcons[buildingKey] || '🏗️',
         buildingKey,
-        canAfford // Grey out based on resources, not unlock status
+        canAfford
       );
 
       this.buildButtons.push(button);
-      yOffset += 58;  // Spacing between buttons
+      yOffset += this.buildMenuMiddleHeight;
     }
   }
 
@@ -910,18 +951,35 @@ export default class UIScene extends Phaser.Scene {
 
   /**
    * Create building panel (initially hidden)
-   * Dynamic panel that adjusts to show upgrades for any building
+   * Dynamic panel with scrollable content area
    */
   createBuildingPanel() {
-    // Scroll image: 428x480, scale to fit
+    // Scroll image dimensions at full scale: 428x480
+    // Padding at full scale: top 75px, scrollable 330px, bottom 75px
     const scrollScale = 0.6;
+    this.panelScale = scrollScale;
     this.panelWidth = 428 * scrollScale;
     this.panelBaseHeight = 480 * scrollScale;
     this.panelX = (this.screenWidth - 220 - this.panelWidth) / 2;
     this.panelY = this.screenHeight - this.panelBaseHeight - 50;
 
-    // Content padding inside the scroll
-    this.panelContentPadding = { left: 30, top: 30, right: 30, bottom: 40 };
+    // Content padding inside the scroll (scaled from 75px top/bottom)
+    const scaledTopPadding = 75 * scrollScale;    // 45px
+    const scaledBottomPadding = 75 * scrollScale; // 45px
+    const scaledScrollableHeight = 330 * scrollScale; // 198px
+
+    this.panelContentPadding = {
+      left: 45 * scrollScale,  // More left padding for text
+      top: scaledTopPadding,
+      right: 20 * scrollScale,
+      bottom: scaledBottomPadding
+    };
+
+    // Scrollable area configuration
+    this.scrollAreaY = this.panelY + scaledTopPadding;
+    this.scrollAreaHeight = scaledScrollableHeight;
+    this.scrollContentHeight = 0; // Will be set based on content
+    this.scrollOffset = 0;
 
     // Container for all building panel elements
     this.buildingPanelContainer = this.add.container(0, 0);
@@ -937,13 +995,21 @@ export default class UIScene extends Phaser.Scene {
     this.panelBg.setDisplaySize(this.panelWidth, this.panelBaseHeight);
     this.buildingPanelContainer.add(this.panelBg);
 
-    // Title
+    // Create scrollable content container
+    this.scrollableContent = this.add.container(0, 0);
+    this.buildingPanelContainer.add(this.scrollableContent);
+
+    // Create mask for scrollable area (will be updated in updateScrollMask)
+    this.scrollMaskGraphics = null;
+    this.scrollMask = null;
+
+    // Title (fixed, not scrollable)
     this.buildingNameText = this.add.text(
       this.panelX + this.panelWidth / 2,
-      this.panelY + this.panelContentPadding.top,
+      this.panelY + 12,
       'Building',
       {
-        fontSize: '18px',
+        fontSize: '16px',
         fill: '#3d2817',
         fontFamily: 'Arial',
         fontStyle: 'bold'
@@ -952,54 +1018,13 @@ export default class UIScene extends Phaser.Scene {
     this.buildingNameText.setOrigin(0.5, 0);
     this.buildingPanelContainer.add(this.buildingNameText);
 
-    // Status text
-    this.buildingStatusText = this.add.text(
-      this.panelX + this.panelContentPadding.left,
-      this.panelY + this.panelContentPadding.top + 30,
-      'Status: Operational',
-      {
-        fontSize: '12px',
-        fill: '#2e7d32',
-        fontFamily: 'Arial'
-      }
-    );
-    this.buildingPanelContainer.add(this.buildingStatusText);
-
-    // Info text (for building-specific info like production rates)
-    this.buildingInfoText = this.add.text(
-      this.panelX + this.panelContentPadding.left,
-      this.panelY + this.panelContentPadding.top + 50,
-      '',
-      {
-        fontSize: '11px',
-        fill: '#8b6914',
-        fontFamily: 'Arial',
-        wordWrap: { width: this.panelWidth - this.panelContentPadding.left - this.panelContentPadding.right }
-      }
-    );
-    this.buildingPanelContainer.add(this.buildingInfoText);
-
-    // Section label (Production/Upgrades/Research)
-    this.sectionLabel = this.add.text(
-      this.panelX + this.panelContentPadding.left,
-      this.panelY + this.panelContentPadding.top + 75,
-      '',
-      {
-        fontSize: '14px',
-        fill: '#3d2817',
-        fontFamily: 'Arial',
-        fontStyle: 'bold'
-      }
-    );
-    this.buildingPanelContainer.add(this.sectionLabel);
-
-    // Close button
+    // Close button (fixed, not scrollable)
     this.closeBtn = this.add.text(
-      this.panelX + this.panelWidth - this.panelContentPadding.right,
-      this.panelY + this.panelContentPadding.top - 5,
+      this.panelX + this.panelWidth - 15,
+      this.panelY + 10,
       '✕',
       {
-        fontSize: '20px',
+        fontSize: '18px',
         fill: '#5a4030',
         fontFamily: 'Arial'
       }
@@ -1011,45 +1036,86 @@ export default class UIScene extends Phaser.Scene {
     this.closeBtn.on('pointerout', () => this.closeBtn.setColor('#5a4030'));
     this.buildingPanelContainer.add(this.closeBtn);
 
-    // Progress bar elements
-    const progressY = this.panelY + this.panelContentPadding.top + 50;
-    this.progressBarBg = this.add.rectangle(
-      this.panelX + this.panelContentPadding.left,
-      progressY,
-      this.panelWidth - this.panelContentPadding.left - this.panelContentPadding.right,
+    // Status text (in scrollable area)
+    this.buildingStatusText = this.add.text(
+      this.panelX + this.panelContentPadding.left + 5,
+      0, // Y position relative to scroll content
+      'Status: Operational',
+      {
+        fontSize: '11px',
+        fill: '#2e7d32',
+        fontFamily: 'Arial'
+      }
+    );
+    this.scrollableContent.add(this.buildingStatusText);
+
+    // Info text (in scrollable area)
+    this.buildingInfoText = this.add.text(
+      this.panelX + this.panelContentPadding.left + 5,
       18,
+      '',
+      {
+        fontSize: '10px',
+        fill: '#8b6914',
+        fontFamily: 'Arial',
+        wordWrap: { width: this.panelWidth - this.panelContentPadding.left - this.panelContentPadding.right - 10 }
+      }
+    );
+    this.scrollableContent.add(this.buildingInfoText);
+
+    // Section label (in scrollable area)
+    this.sectionLabel = this.add.text(
+      this.panelX + this.panelContentPadding.left + 5,
+      38,
+      '',
+      {
+        fontSize: '12px',
+        fill: '#3d2817',
+        fontFamily: 'Arial',
+        fontStyle: 'bold'
+      }
+    );
+    this.scrollableContent.add(this.sectionLabel);
+
+    // Progress bar elements (in scrollable area)
+    const progressBarWidth = this.panelWidth - this.panelContentPadding.left - this.panelContentPadding.right - 10;
+    this.progressBarBg = this.add.rectangle(
+      this.panelX + this.panelContentPadding.left + 5,
+      18,
+      progressBarWidth,
+      16,
       0x8b7355
     );
     this.progressBarBg.setOrigin(0, 0);
     this.progressBarBg.setVisible(false);
-    this.buildingPanelContainer.add(this.progressBarBg);
+    this.scrollableContent.add(this.progressBarBg);
 
     this.progressBarFill = this.add.rectangle(
-      this.panelX + this.panelContentPadding.left + 2,
-      progressY + 2,
+      this.panelX + this.panelContentPadding.left + 7,
+      20,
       0,
-      14,
+      12,
       0x4caf50
     );
     this.progressBarFill.setOrigin(0, 0);
     this.progressBarFill.setVisible(false);
-    this.buildingPanelContainer.add(this.progressBarFill);
+    this.scrollableContent.add(this.progressBarFill);
 
     this.progressBarBorder = this.add.rectangle(
-      this.panelX + this.panelContentPadding.left,
-      progressY,
-      this.panelWidth - this.panelContentPadding.left - this.panelContentPadding.right,
-      18
+      this.panelX + this.panelContentPadding.left + 5,
+      18,
+      progressBarWidth,
+      16
     );
     this.progressBarBorder.setOrigin(0, 0);
     this.progressBarBorder.setStrokeStyle(2, 0x5a4030);
     this.progressBarBorder.setFillStyle(0x000000, 0);
     this.progressBarBorder.setVisible(false);
-    this.buildingPanelContainer.add(this.progressBarBorder);
+    this.scrollableContent.add(this.progressBarBorder);
 
     this.progressBarText = this.add.text(
       this.panelX + this.panelWidth / 2,
-      progressY + 9,
+      26,
       '',
       {
         fontSize: '10px',
@@ -1062,19 +1128,114 @@ export default class UIScene extends Phaser.Scene {
     );
     this.progressBarText.setOrigin(0.5);
     this.progressBarText.setVisible(false);
-    this.buildingPanelContainer.add(this.progressBarText);
+    this.scrollableContent.add(this.progressBarText);
+
+    // Scroll indicator (thumb)
+    this.scrollThumb = this.add.rectangle(
+      this.panelX + this.panelWidth - 10,
+      this.scrollAreaY,
+      6,
+      30,
+      0x8b7355,
+      0.8
+    );
+    this.scrollThumb.setOrigin(0.5, 0);
+    this.scrollThumb.setVisible(false);
+    this.buildingPanelContainer.add(this.scrollThumb);
 
     // Dynamic buttons array (will be populated when showing panel)
     this.dynamicButtons = [];
 
     // Panel refresh timer
     this.panelRefreshTimer = 0;
+
+    // Set up scroll wheel handling for the panel
+    this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
+      if (this.buildingPanelContainer.visible && this.isPointerOverPanel(pointer)) {
+        this.handlePanelScroll(deltaY);
+      }
+    });
   }
 
   /**
-   * Create a dynamic button for the building panel (simple text, no background)
-   * @param {number} x - X position
-   * @param {number} y - Y position
+   * Check if pointer is over the building panel
+   */
+  isPointerOverPanel(pointer) {
+    return pointer.x >= this.panelX &&
+           pointer.x <= this.panelX + this.panelWidth &&
+           pointer.y >= this.panelY &&
+           pointer.y <= this.panelY + this.panelBaseHeight;
+  }
+
+  /**
+   * Handle scrolling in the building panel
+   */
+  handlePanelScroll(deltaY) {
+    const scrollSpeed = 0.5;
+    const maxScroll = Math.max(0, this.scrollContentHeight - this.scrollAreaHeight);
+
+    // Update scroll offset
+    this.scrollOffset += deltaY * scrollSpeed;
+    this.scrollOffset = Phaser.Math.Clamp(this.scrollOffset, 0, maxScroll);
+
+    // Update scrollable content position
+    this.scrollableContent.y = this.scrollAreaY - this.scrollOffset;
+
+    // Update scroll thumb position
+    this.updateScrollThumb();
+  }
+
+  /**
+   * Update the scroll thumb position and visibility
+   */
+  updateScrollThumb() {
+    const maxScroll = Math.max(0, this.scrollContentHeight - this.scrollAreaHeight);
+
+    if (maxScroll <= 0) {
+      this.scrollThumb.setVisible(false);
+      return;
+    }
+
+    this.scrollThumb.setVisible(true);
+
+    // Calculate thumb size proportional to visible area
+    const thumbHeight = Math.max(20, (this.scrollAreaHeight / this.scrollContentHeight) * this.scrollAreaHeight);
+    this.scrollThumb.height = thumbHeight;
+
+    // Calculate thumb position
+    const scrollProgress = this.scrollOffset / maxScroll;
+    const thumbY = this.scrollAreaY + scrollProgress * (this.scrollAreaHeight - thumbHeight);
+    this.scrollThumb.y = thumbY;
+  }
+
+  /**
+   * Update the scroll mask geometry (called when panel is repositioned)
+   */
+  updateScrollMask() {
+    if (this.scrollMaskGraphics) {
+      this.scrollMaskGraphics.destroy();
+    }
+
+    this.scrollMaskGraphics = this.make.graphics();
+    this.scrollMaskGraphics.fillStyle(0xffffff);
+    this.scrollMaskGraphics.fillRect(
+      this.panelX + this.panelContentPadding.left,
+      this.scrollAreaY,
+      this.panelWidth - this.panelContentPadding.left - this.panelContentPadding.right,
+      this.scrollAreaHeight
+    );
+
+    if (this.scrollMask) {
+      this.scrollableContent.clearMask();
+    }
+    this.scrollMask = this.scrollMaskGraphics.createGeometryMask();
+    this.scrollableContent.setMask(this.scrollMask);
+  }
+
+  /**
+   * Create a dynamic button for the building panel (in scrollable area)
+   * @param {number} x - X position (absolute)
+   * @param {number} y - Y position (relative to scroll content, 0 = top of scroll area)
    * @param {string} label - Button label
    * @param {string} costText - Cost display text
    * @param {string} icon - Icon emoji
@@ -1084,33 +1245,40 @@ export default class UIScene extends Phaser.Scene {
    */
   createDynamicButton(x, y, label, costText, icon, onClick, disabled = false, tooltipText = null) {
     const btnWidth = 180;
-    const btnHeight = 38;
-    const leftPadding = 25; // More padding from left edge
+    const btnHeight = 36;
+    const leftPadding = 5;
 
     // Readable font with slight style - disabled uses dark muted brown for readability on parchment
     const normalColor = disabled ? '#4a4035' : '#3d2817';
     const hoverColor = '#8b5a2b';
     const costColor = disabled ? '#5a5045' : '#5a4a3a';
 
-    // Create invisible hit area for interaction
+    // Create invisible hit area for interaction (added to scrollable content)
     const bg = this.add.rectangle(x + leftPadding + btnWidth / 2, y + btnHeight / 2, btnWidth, btnHeight, 0x000000, 0);
     bg.setInteractive({ useHandCursor: !disabled });
+    this.scrollableContent.add(bg);
 
-    const iconText = this.add.text(x + leftPadding, y + 10, icon, {
-      fontSize: '15px'
+    const iconText = this.add.text(x + leftPadding, y + 8, icon, {
+      fontSize: '14px'
     });
+    this.scrollableContent.add(iconText);
 
-    const labelText = this.add.text(x + leftPadding + 22, y + 5, label, {
-      fontSize: '13px',
+    const labelText = this.add.text(x + leftPadding + 20, y + 4, label, {
+      fontSize: '12px',
       fill: normalColor,
       fontFamily: 'Georgia, serif'
     });
+    this.scrollableContent.add(labelText);
 
-    const cost = this.add.text(x + leftPadding + 22, y + 21, costText, {
-      fontSize: '10px',
+    const cost = this.add.text(x + leftPadding + 20, y + 18, costText, {
+      fontSize: '9px',
       fill: costColor,
       fontFamily: 'Georgia, serif'
     });
+    this.scrollableContent.add(cost);
+
+    // Store the relative Y for tooltip positioning
+    const absoluteY = this.scrollAreaY + y - this.scrollOffset;
 
     // Hover and click interactions
     bg.on('pointerover', () => {
@@ -1124,9 +1292,10 @@ export default class UIScene extends Phaser.Scene {
         const tooltipContent = disabled
           ? `${label}\n\n${tooltipText}\n\n⚠️ Not enough resources`
           : `${label}\n\n${tooltipText}`;
-        // Position tooltip to the left of the panel (panelX - tooltip width - padding)
-        const tooltipX = this.panelX - 220;
-        this.showTooltip(tooltipX, y, tooltipContent);
+        // Position tooltip well to the left of the panel (fixed position near left edge)
+        const tooltipX = 20;
+        const tooltipY = this.panelY + 50;
+        this.showTooltip(tooltipX, tooltipY, tooltipContent);
       }
     });
 
@@ -1141,12 +1310,7 @@ export default class UIScene extends Phaser.Scene {
       bg.on('pointerdown', onClick);
     }
 
-    // Add all elements to container
-    this.buildingPanelContainer.add(bg);
-    this.buildingPanelContainer.add(iconText);
-    this.buildingPanelContainer.add(labelText);
-    this.buildingPanelContainer.add(cost);
-
+    // Elements already added to scrollableContent above
     return { bg, icon: iconText, label: labelText, cost };
   }
 
@@ -1164,17 +1328,29 @@ export default class UIScene extends Phaser.Scene {
   }
 
   /**
-   * Resize the panel to fit content
+   * Resize the panel to fit content (with scrollable area)
    */
   resizePanel(numButtons, hasInfo = false, hasProgressBar = false) {
-    // With scroll background, we use fixed panel size and position content within
-    const padding = this.panelContentPadding;
-    const progressBarHeight = hasProgressBar ? 25 : 0;
-    const infoHeight = hasInfo ? 20 : 0;
+    const progressBarHeight = hasProgressBar ? 22 : 0;
+    const infoHeight = hasInfo ? 16 : 0;
+    const buttonHeight = 36;
+    const headerHeight = 18; // Status text height
 
-    // Panel position is fixed based on scroll size
+    // Calculate total content height
+    const totalContentHeight = headerHeight + progressBarHeight + infoHeight + 20 + (numButtons * buttonHeight);
+    this.scrollContentHeight = totalContentHeight;
+
+    // Update panel position first
     this.panelY = this.screenHeight - this.panelBaseHeight - 50;
     this.panelX = (this.screenWidth - 220 - this.panelWidth) / 2;
+
+    // Reset scroll position
+    this.scrollOffset = 0;
+    this.scrollAreaY = this.panelY + this.panelContentPadding.top;
+    this.scrollableContent.y = this.scrollAreaY;
+
+    // Update scroll mask for new position
+    this.updateScrollMask();
 
     // Update scroll background position
     this.panelBg.setPosition(
@@ -1182,29 +1358,38 @@ export default class UIScene extends Phaser.Scene {
       this.panelY + this.panelBaseHeight / 2
     );
 
-    // Update text positions within the scroll
-    this.buildingNameText.setPosition(this.panelX + this.panelWidth / 2, this.panelY + padding.top);
-    this.buildingStatusText.setPosition(this.panelX + padding.left, this.panelY + padding.top + 28);
+    // Update fixed elements (title and close button)
+    this.buildingNameText.setPosition(this.panelX + this.panelWidth / 2, this.panelY + 12);
+    this.closeBtn.setPosition(this.panelX + this.panelWidth - 15, this.panelY + 10);
 
-    // Progress bar position (below status text)
-    const progressY = this.panelY + padding.top + 48;
-    this.progressBarBg.setPosition(this.panelX + padding.left, progressY);
-    this.progressBarFill.setPosition(this.panelX + padding.left + 2, progressY + 2);
-    this.progressBarBorder.setPosition(this.panelX + padding.left, progressY);
-    this.progressBarText.setPosition(this.panelX + this.panelWidth / 2, progressY + 9);
+    // Update scroll thumb position
+    this.scrollThumb.x = this.panelX + this.panelWidth - 10;
+    this.updateScrollThumb();
 
-    // Info text position (below progress bar if present)
-    const infoY = this.panelY + padding.top + 48 + progressBarHeight;
-    this.buildingInfoText.setPosition(this.panelX + padding.left, infoY);
+    // Update scrollable content positions (relative Y coordinates)
+    // Status text at top of scroll area
+    this.buildingStatusText.setPosition(this.panelX + this.panelContentPadding.left + 5, 0);
 
-    // Section label position
-    this.sectionLabel.setPosition(this.panelX + padding.left, infoY + infoHeight + 10);
-    this.closeBtn.setPosition(this.panelX + this.panelWidth - padding.right, this.panelY + padding.top - 5);
+    // Progress bar below status (if visible)
+    const progressY = 18;
+    this.progressBarBg.setPosition(this.panelX + this.panelContentPadding.left + 5, progressY);
+    this.progressBarFill.setPosition(this.panelX + this.panelContentPadding.left + 7, progressY + 2);
+    this.progressBarBorder.setPosition(this.panelX + this.panelContentPadding.left + 5, progressY);
+    this.progressBarText.setPosition(this.panelX + this.panelWidth / 2, progressY + 8);
+
+    // Info text (below progress bar if present)
+    const infoY = progressY + progressBarHeight;
+    this.buildingInfoText.setPosition(this.panelX + this.panelContentPadding.left + 5, infoY);
+
+    // Section label
+    const sectionY = infoY + infoHeight + 4;
+    this.sectionLabel.setPosition(this.panelX + this.panelContentPadding.left + 5, sectionY);
 
     // Store progress bar visibility state
     this.hasProgressBar = hasProgressBar;
 
-    return infoY + infoHeight + 35; // Return Y position for first button
+    // Return Y position for first button (relative to scroll content)
+    return sectionY + 18;
   }
 
   /**
@@ -1262,8 +1447,9 @@ export default class UIScene extends Phaser.Scene {
    * Show and update the progress bar
    */
   showProgressBar(progress, text, color = 0x4CAF50) {
-    const maxWidth = this.panelWidth - 24;
-    const fillWidth = Math.max(0, Math.min(maxWidth, maxWidth * progress));
+    // Calculate max width based on panel content area (accounting for padding)
+    const maxWidth = this.panelWidth - this.panelContentPadding.left - this.panelContentPadding.right - 10;
+    const fillWidth = Math.max(0, Math.min(maxWidth - 4, (maxWidth - 4) * progress)); // -4 for border
 
     this.progressBarBg.setVisible(true);
     this.progressBarFill.setVisible(true);
@@ -1302,7 +1488,14 @@ export default class UIScene extends Phaser.Scene {
    */
   showBuildingPanel(building) {
     this.selectedBuilding = building;
+    this.selectedUnit = null; // Clear unit selection when showing building panel
     this.clearDynamicButtons();
+
+    // Reset scroll position
+    this.scrollOffset = 0;
+    if (this.scrollableContent) {
+      this.scrollableContent.y = this.scrollAreaY;
+    }
 
     this.buildingNameText.setText(building.buildingName);
 
@@ -1399,7 +1592,7 @@ export default class UIScene extends Phaser.Scene {
       !canAffordWorker,
       'Train a worker goose that can gather resources and construct buildings.'
     ));
-    buttonY += 48;
+    buttonY += 38;
 
     // Upgrade buttons
     for (const [key, upgrade] of availableUpgrades) {
@@ -1411,7 +1604,7 @@ export default class UIScene extends Phaser.Scene {
         !canAffordUpgrade,
         upgrade.description || 'Upgrade your building.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
   }
 
@@ -1450,7 +1643,7 @@ export default class UIScene extends Phaser.Scene {
         !canAfford,
         'Heavy defensive unit with high health and melee damage. Slow but tanky.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
     if (canProduce.includes('scout')) {
       const canAfford = resourceManager ? resourceManager.canAfford(UNIT_COSTS.SCOUT) : true;
@@ -1461,7 +1654,7 @@ export default class UIScene extends Phaser.Scene {
         !canAfford,
         'Fast ranged unit with good vision. Quick but fragile.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
     if (canProduce.includes('spy')) {
       const canAfford = resourceManager ? resourceManager.canAfford(UNIT_COSTS.SPY) : true;
@@ -1472,7 +1665,7 @@ export default class UIScene extends Phaser.Scene {
         !canAfford,
         'Stealthy reconnaissance unit with extended vision range.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
 
     // Upgrade buttons
@@ -1485,7 +1678,7 @@ export default class UIScene extends Phaser.Scene {
         !canAffordUpgrade,
         upgrade.description || 'Upgrade your barracks.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
   }
 
@@ -1500,14 +1693,15 @@ export default class UIScene extends Phaser.Scene {
     } else if (status.queue > 0) {
       infoText = `Queue: ${status.queue}`;
     } else if (status.autoProduction) {
-      infoText = 'Auto-production enabled';
+      infoText = status.isPaused ? 'Auto-production PAUSED' : 'Auto-production enabled';
     }
     this.buildingInfoText.setText(infoText);
 
     const upgrades = building.upgrades || {};
     const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
     const hasBatch = upgrades.BATCH_PRODUCTION?.purchased;
-    const numButtons = 1 + (hasBatch ? 1 : 0) + availableUpgrades.length;
+    const hasAutoProduction = status.autoProduction;
+    const numButtons = 1 + (hasBatch ? 1 : 0) + (hasAutoProduction ? 1 : 0) + availableUpgrades.length;
 
     this.sectionLabel.setText('Tool Production & Upgrades:');
     let buttonY = this.resizePanel(numButtons, infoText !== '');
@@ -1526,7 +1720,7 @@ export default class UIScene extends Phaser.Scene {
       !canAffordTool,
       'Convert sticks into tools. Tools are required for training combat units.'
     ));
-    buttonY += 48;
+    buttonY += 38;
 
     // Batch Production button (if unlocked)
     if (hasBatch) {
@@ -1539,7 +1733,20 @@ export default class UIScene extends Phaser.Scene {
         !canAffordBatch,
         'Produce 5 tools at once for improved efficiency.'
       ));
-      buttonY += 48;
+      buttonY += 38;
+    }
+
+    // Pause/Resume auto-production button (if auto-production is enabled)
+    if (hasAutoProduction) {
+      const isPaused = status.isPaused || false;
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        isPaused ? 'Resume Auto' : 'Pause Auto', isPaused ? 'Start auto-production' : 'Stop auto-production',
+        isPaused ? '▶️' : '⏸️', () => this.toggleBuildingPause(),
+        false,
+        isPaused ? 'Resume automatic tool production.' : 'Pause automatic tool production.'
+      ));
+      buttonY += 38;
     }
 
     // Upgrade buttons
@@ -1552,7 +1759,7 @@ export default class UIScene extends Phaser.Scene {
         !canAffordUpgrade,
         upgrade.description || 'Upgrade your factory.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
   }
 
@@ -1597,7 +1804,7 @@ export default class UIScene extends Phaser.Scene {
         isDisabled,
         upgrade.description || 'Research new technology.'
       ));
-      buttonY += 48;
+      buttonY += 38;
       count++;
     }
   }
@@ -1628,7 +1835,7 @@ export default class UIScene extends Phaser.Scene {
         !canAfford,
         upgrade.description || 'Upgrade your watchtower.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
   }
 
@@ -1659,7 +1866,7 @@ export default class UIScene extends Phaser.Scene {
         !canAfford,
         upgrade.description || 'Upgrade your mine.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
   }
 
@@ -1689,7 +1896,7 @@ export default class UIScene extends Phaser.Scene {
         !canAfford,
         upgrade.description || 'Upgrade your power station.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
   }
 
@@ -1716,11 +1923,23 @@ export default class UIScene extends Phaser.Scene {
     const upgrades = building.upgrades || {};
     const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
 
-    this.sectionLabel.setText('Upgrades:');
-    let buttonY = this.resizePanel(availableUpgrades.length, true);
+    this.sectionLabel.setText('Production & Upgrades:');
+    const numButtons = 1 + availableUpgrades.length; // 1 for pause/resume
+    let buttonY = this.resizePanel(numButtons, true);
 
     const gameScene = this.scene.get('GameScene');
     const resourceManager = gameScene?.resourceManager;
+
+    // Pause/Resume button
+    const isPaused = status.isPaused || false;
+    this.dynamicButtons.push(this.createDynamicButton(
+      this.panelX + 10, buttonY,
+      isPaused ? 'Resume' : 'Pause', isPaused ? 'Start production' : 'Stop production',
+      isPaused ? '▶️' : '⏸️', () => this.toggleBuildingPause(),
+      false,
+      isPaused ? 'Resume automatic food production.' : 'Pause automatic food production.'
+    ));
+    buttonY += 38;
 
     for (const [key, upgrade] of availableUpgrades) {
       const canAfford = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
@@ -1731,7 +1950,7 @@ export default class UIScene extends Phaser.Scene {
         !canAfford,
         upgrade.description || 'Upgrade your farm.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
   }
 
@@ -1746,11 +1965,23 @@ export default class UIScene extends Phaser.Scene {
     const upgrades = building.upgrades || {};
     const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
 
-    this.sectionLabel.setText('Upgrades:');
-    let buttonY = this.resizePanel(availableUpgrades.length, true);
+    this.sectionLabel.setText('Production & Upgrades:');
+    const numButtons = 1 + availableUpgrades.length; // 1 for pause/resume
+    let buttonY = this.resizePanel(numButtons, true);
 
     const gameScene = this.scene.get('GameScene');
     const resourceManager = gameScene?.resourceManager;
+
+    // Pause/Resume button
+    const isPaused = status.isPaused || false;
+    this.dynamicButtons.push(this.createDynamicButton(
+      this.panelX + 10, buttonY,
+      isPaused ? 'Resume' : 'Pause', isPaused ? 'Start extraction' : 'Stop extraction',
+      isPaused ? '▶️' : '⏸️', () => this.toggleBuildingPause(),
+      false,
+      isPaused ? 'Resume automatic water extraction.' : 'Pause automatic water extraction.'
+    ));
+    buttonY += 38;
 
     for (const [key, upgrade] of availableUpgrades) {
       const canAfford = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
@@ -1761,7 +1992,7 @@ export default class UIScene extends Phaser.Scene {
         !canAfford,
         upgrade.description || 'Upgrade your well.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
   }
 
@@ -1776,11 +2007,23 @@ export default class UIScene extends Phaser.Scene {
     const upgrades = building.upgrades || {};
     const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
 
-    this.sectionLabel.setText('Upgrades:');
-    let buttonY = this.resizePanel(availableUpgrades.length, true);
+    this.sectionLabel.setText('Production & Upgrades:');
+    const numButtons = 1 + availableUpgrades.length; // 1 for pause/resume
+    let buttonY = this.resizePanel(numButtons, true);
 
     const gameScene = this.scene.get('GameScene');
     const resourceManager = gameScene?.resourceManager;
+
+    // Pause/Resume button
+    const isPaused = status.isPaused || false;
+    this.dynamicButtons.push(this.createDynamicButton(
+      this.panelX + 10, buttonY,
+      isPaused ? 'Resume' : 'Pause', isPaused ? 'Start production' : 'Stop production',
+      isPaused ? '▶️' : '⏸️', () => this.toggleBuildingPause(),
+      false,
+      isPaused ? 'Resume automatic stick production.' : 'Pause automatic stick production.'
+    ));
+    buttonY += 38;
 
     for (const [key, upgrade] of availableUpgrades) {
       const canAfford = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
@@ -1791,7 +2034,7 @@ export default class UIScene extends Phaser.Scene {
         !canAfford,
         upgrade.description || 'Upgrade your lumber mill.'
       ));
-      buttonY += 48;
+      buttonY += 38;
     }
   }
 
@@ -1804,6 +2047,19 @@ export default class UIScene extends Phaser.Scene {
     const success = this.selectedBuilding.purchaseUpgrade?.(upgradeKey);
     if (success) {
       console.log(`UIScene: Purchased upgrade ${upgradeKey}`);
+      // Refresh the panel to show updated state
+      this.showBuildingPanel(this.selectedBuilding);
+    }
+  }
+
+  /**
+   * Toggle pause state for the selected building's production
+   */
+  toggleBuildingPause() {
+    if (!this.selectedBuilding) return;
+
+    if (this.selectedBuilding.togglePause) {
+      this.selectedBuilding.togglePause();
       // Refresh the panel to show updated state
       this.showBuildingPanel(this.selectedBuilding);
     }
@@ -1826,6 +2082,186 @@ export default class UIScene extends Phaser.Scene {
    */
   hideBuildingPanel() {
     this.selectedBuilding = null;
+    this.clearDynamicButtons();
+    this.buildingPanelContainer.setVisible(false);
+  }
+
+  /**
+   * Show unit panel (for units with special abilities like Spy)
+   */
+  showUnitPanel(unit) {
+    if (!unit) return;
+
+    // Hide building panel if visible
+    this.hideBuildingPanel();
+
+    this.selectedUnit = unit;
+    this.clearDynamicButtons();
+
+    // Reset scroll position
+    this.scrollOffset = 0;
+    if (this.scrollableContent) {
+      this.scrollableContent.y = this.scrollAreaY;
+    }
+
+    // Set unit name
+    const unitName = unit.unitType.charAt(0).toUpperCase() + unit.unitType.slice(1);
+    this.buildingNameText.setText(unitName);
+
+    // Set status (health + stealth for spy)
+    if (unit.unitType === 'spy') {
+      this.showSpyPanel(unit);
+    } else {
+      // Generic unit info
+      const healthPercent = Math.floor((unit.currentHealth / unit.maxHealth) * 100);
+      this.buildingStatusText.setText(`Health: ${unit.currentHealth}/${unit.maxHealth} (${healthPercent}%)`);
+      this.buildingStatusText.setColor(healthPercent > 50 ? '#4CAF50' : '#FF9800');
+      this.buildingInfoText.setText('');
+      this.sectionLabel.setText('');
+      this.resizePanel(0);
+    }
+
+    this.buildingPanelContainer.setVisible(true);
+  }
+
+  /**
+   * Show Spy ability panel
+   */
+  showSpyPanel(spy) {
+    const abilityStatus = spy.getAbilityStatus();
+
+    // Status text
+    let statusText = `Health: ${spy.currentHealth}/${spy.maxHealth}`;
+    if (abilityStatus.isStealthed) {
+      statusText += ' | STEALTHED';
+      this.buildingStatusText.setColor('#9C27B0'); // Purple for stealth
+    } else {
+      statusText += ' | VISIBLE';
+      this.buildingStatusText.setColor('#FF9800'); // Orange for visible
+    }
+    this.buildingStatusText.setText(statusText);
+
+    // Info text - cooldowns
+    let infoText = '';
+    if (!abilityStatus.sabotageReady) {
+      infoText += `Sabotage: ${abilityStatus.sabotageCooldown}s`;
+    }
+    if (!abilityStatus.stealReady) {
+      if (infoText) infoText += ' | ';
+      infoText += `Steal: ${abilityStatus.stealCooldown}s`;
+    }
+    this.buildingInfoText.setText(infoText);
+
+    this.sectionLabel.setText('Abilities:');
+
+    // Count buttons
+    const numButtons = 2; // Sabotage + Steal
+    let buttonY = this.resizePanel(numButtons, infoText !== '');
+
+    // Get GameScene for target finding
+    const gameScene = this.scene.get('GameScene');
+
+    // Sabotage button
+    const sabotageLabel = abilityStatus.sabotageReady ? '⚡ Sabotage Building' : `⚡ Sabotage (${abilityStatus.sabotageCooldown}s)`;
+    this.createDynamicButton(
+      sabotageLabel,
+      buttonY,
+      () => this.useSabotage(spy),
+      abilityStatus.sabotageReady,
+      'Disable an enemy building for 30s.\nMust be within 100px of target.'
+    );
+    buttonY += 38;
+
+    // Steal button
+    const stealLabel = abilityStatus.stealReady ? '💰 Steal Resources' : `💰 Steal (${abilityStatus.stealCooldown}s)`;
+    this.createDynamicButton(
+      stealLabel,
+      buttonY,
+      () => this.useSteal(spy),
+      abilityStatus.stealReady,
+      'Steal 25 of each resource from enemy storage.\nMust be within 100px of target.'
+    );
+  }
+
+  /**
+   * Use Spy's Sabotage ability on nearest enemy building
+   */
+  useSabotage(spy) {
+    const gameScene = this.scene.get('GameScene');
+    if (!gameScene) return;
+
+    // Find nearest enemy building in range
+    let nearestBuilding = null;
+    let nearestDistance = Infinity;
+
+    if (gameScene.buildings) {
+      gameScene.buildings.forEach(building => {
+        if (!building.active || building.faction === spy.faction) return;
+
+        const dist = Phaser.Math.Distance.Between(spy.x, spy.y, building.x, building.y);
+        if (dist < nearestDistance) {
+          nearestDistance = dist;
+          nearestBuilding = building;
+        }
+      });
+    }
+
+    if (nearestBuilding && nearestDistance <= spy.sabotageRange) {
+      const success = spy.sabotageBuilding(nearestBuilding);
+      if (success) {
+        // Refresh panel to show cooldown
+        this.showSpyPanel(spy);
+      }
+    } else if (nearestBuilding) {
+      console.log(`Spy: Move closer to enemy building (${Math.round(nearestDistance)}px away, need ${spy.sabotageRange}px)`);
+    } else {
+      console.log('Spy: No enemy buildings found');
+    }
+  }
+
+  /**
+   * Use Spy's Steal ability on nearest enemy storage
+   */
+  useSteal(spy) {
+    const gameScene = this.scene.get('GameScene');
+    if (!gameScene) return;
+
+    // Find nearest enemy storage building in range
+    let nearestStorage = null;
+    let nearestDistance = Infinity;
+    const validTypes = ['RESOURCE_STORAGE', 'COOP', 'RESOURCESTORAGE'];
+
+    if (gameScene.buildings) {
+      gameScene.buildings.forEach(building => {
+        if (!building.active || building.faction === spy.faction) return;
+        if (!validTypes.includes(building.buildingType?.toUpperCase())) return;
+
+        const dist = Phaser.Math.Distance.Between(spy.x, spy.y, building.x, building.y);
+        if (dist < nearestDistance) {
+          nearestDistance = dist;
+          nearestStorage = building;
+        }
+      });
+    }
+
+    if (nearestStorage && nearestDistance <= spy.stealRange) {
+      const success = spy.stealResources(nearestStorage);
+      if (success) {
+        // Refresh panel to show cooldown
+        this.showSpyPanel(spy);
+      }
+    } else if (nearestStorage) {
+      console.log(`Spy: Move closer to enemy storage (${Math.round(nearestDistance)}px away, need ${spy.stealRange}px)`);
+    } else {
+      console.log('Spy: No enemy storage buildings found');
+    }
+  }
+
+  /**
+   * Hide unit panel
+   */
+  hideUnitPanel() {
+    this.selectedUnit = null;
     this.clearDynamicButtons();
     this.buildingPanelContainer.setVisible(false);
   }
@@ -1926,50 +2362,6 @@ export default class UIScene extends Phaser.Scene {
    */
   getResources() {
     return { ...this.resources };
-  }
-
-  /**
-   * Create debug toggle button
-   */
-  createDebugToggle() {
-    const btnWidth = 100;
-    const btnHeight = 30;
-    const btnX = this.screenWidth - 240;
-    const btnY = this.screenHeight - 50;
-
-    // Button background with styled appearance
-    this.debugButton = this.add.rectangle(btnX, btnY, btnWidth, btnHeight, 0xFF5722, 1);
-    this.debugButton.setOrigin(0, 0);
-    this.debugButton.setDepth(1001);
-    this.debugButton.setInteractive({ useHandCursor: true });
-    this.debugButton.setStrokeStyle(2, 0xBF360C);
-
-    // Button text
-    this.debugButtonText = this.add.text(btnX + btnWidth / 2, btnY + btnHeight / 2, 'Debug: OFF', {
-      fontSize: '14px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    });
-    this.debugButtonText.setOrigin(0.5);
-    this.debugButtonText.setDepth(1002);
-
-    // Hover effects
-    this.debugButton.on('pointerover', () => this.debugButton.setFillStyle(0xFF7043));
-    this.debugButton.on('pointerout', () => {
-      this.debugButton.setFillStyle(this.debugMode ? 0x4CAF50 : 0xFF5722);
-    });
-    this.debugButton.on('pointerdown', () => {
-      this.debugMode = !this.debugMode;
-      this.debugButton.setFillStyle(this.debugMode ? 0x4CAF50 : 0xFF5722);
-      this.debugButtonText.setText(this.debugMode ? 'Debug: ON' : 'Debug: OFF');
-
-      // Toggle debug in GameScene
-      const gameScene = this.scene.get('GameScene');
-      if (gameScene) {
-        gameScene.setDebugMode(this.debugMode);
-      }
-    });
   }
 
   /**

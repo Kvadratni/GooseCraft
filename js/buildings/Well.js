@@ -23,6 +23,7 @@ export default class Well extends Building {
     this.gatherTimer = 0;
     this.gatherInterval = 4000; // Extract every 4 seconds
     this.gatherAmount = 5; // Water per extraction
+    this.isPaused = false; // Can pause/resume production
 
     // Upgrades
     this.upgrades = {
@@ -49,7 +50,7 @@ export default class Well extends Building {
   update(time, delta) {
     super.update(time, delta);
 
-    if (this.state !== 'OPERATIONAL') {
+    if (this.state !== 'OPERATIONAL' || this.isPaused || this.isSabotaged) {
       return;
     }
 
@@ -60,6 +61,15 @@ export default class Well extends Building {
       this.gatherTimer = 0;
       this.generateWater();
     }
+  }
+
+  /**
+   * Toggle production pause state
+   */
+  togglePause() {
+    this.isPaused = !this.isPaused;
+    console.log(`Well: Production ${this.isPaused ? 'paused' : 'resumed'}`);
+    return this.isPaused;
   }
 
   /**
@@ -124,7 +134,8 @@ export default class Well extends Building {
     return {
       upgrades: this.upgrades,
       gatherAmount: this.gatherAmount,
-      gatherInterval: this.gatherInterval
+      gatherInterval: this.gatherInterval,
+      isPaused: this.isPaused
     };
   }
 
@@ -139,6 +150,9 @@ export default class Well extends Building {
    * Get status text for UI
    */
   getStatusText() {
+    if (this.isPaused) {
+      return `PAUSED - ${this.gatherAmount} water/${this.gatherInterval/1000}s`;
+    }
     return `Extracting ${this.gatherAmount} water/${this.gatherInterval/1000}s`;
   }
 }

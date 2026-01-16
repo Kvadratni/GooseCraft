@@ -83,6 +83,9 @@ export default class BootScene extends Phaser.Scene {
     // Load UI assets
     this.load.image('ui-top-bar', 'assets/ui/top_bar.png');
     this.load.image('ui-build-menu', 'assets/ui/build_menu.png');
+    this.load.image('ui-build-menu-top', 'assets/ui/build_menu_top.png');
+    this.load.image('ui-build-menu-middle', 'assets/ui/build_menu_middle.png');
+    this.load.image('ui-build-menu-bottom', 'assets/ui/build_menu_bottom.png');
     this.load.image('ui-build-button', 'assets/ui/build_menu_button.png');
     this.load.image('ui-minimap', 'assets/ui/minimap.png');
     this.load.image('ui-scroll', 'assets/ui/menu_scroll.png');

@@ -23,6 +23,7 @@ export default class LumberMill extends Building {
     this.gatherTimer = 0;
     this.gatherInterval = 5000; // Produce every 5 seconds
     this.gatherAmount = 6; // Sticks per cycle
+    this.isPaused = false; // Can pause/resume production
 
     // Upgrades
     this.upgrades = {
@@ -49,7 +50,7 @@ export default class LumberMill extends Building {
   update(time, delta) {
     super.update(time, delta);
 
-    if (this.state !== 'OPERATIONAL') {
+    if (this.state !== 'OPERATIONAL' || this.isPaused || this.isSabotaged) {
       return;
     }
 
@@ -60,6 +61,15 @@ export default class LumberMill extends Building {
       this.gatherTimer = 0;
       this.generateSticks();
     }
+  }
+
+  /**
+   * Toggle production pause state
+   */
+  togglePause() {
+    this.isPaused = !this.isPaused;
+    console.log(`Lumber Mill: Production ${this.isPaused ? 'paused' : 'resumed'}`);
+    return this.isPaused;
   }
 
   /**
@@ -124,7 +134,8 @@ export default class LumberMill extends Building {
     return {
       upgrades: this.upgrades,
       gatherAmount: this.gatherAmount,
-      gatherInterval: this.gatherInterval
+      gatherInterval: this.gatherInterval,
+      isPaused: this.isPaused
     };
   }
 
@@ -139,6 +150,9 @@ export default class LumberMill extends Building {
    * Get status text for UI
    */
   getStatusText() {
+    if (this.isPaused) {
+      return `PAUSED - ${this.gatherAmount} sticks/${this.gatherInterval/1000}s`;
+    }
     return `Producing ${this.gatherAmount} sticks/${this.gatherInterval/1000}s`;
   }
 }

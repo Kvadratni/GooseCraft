@@ -65,6 +65,12 @@ export default class SelectionManager {
    * Handle pointer move (dragging)
    */
   handlePointerMove(pointer) {
+    // Safety cleanup: if we were box selecting but button is no longer down, clean up
+    if (this.isBoxSelecting && pointer && !pointer.leftButtonDown()) {
+      this.cancelBoxSelection();
+      return;
+    }
+
     if (!pointer || !pointer.leftButtonDown()) {
       return;
     }
@@ -127,6 +133,17 @@ export default class SelectionManager {
   startBoxSelection() {
     this.isBoxSelecting = true;
     this.selectionBox = new SelectionBox(this.scene, this.boxStartX, this.boxStartY);
+  }
+
+  /**
+   * Cancel box selection (cleanup without selecting)
+   */
+  cancelBoxSelection() {
+    if (this.selectionBox) {
+      this.selectionBox.destroy();
+      this.selectionBox = null;
+    }
+    this.isBoxSelecting = false;
   }
 
   /**
@@ -252,6 +269,26 @@ export default class SelectionManager {
   }
 
   /**
+   * Show unit UI (for units with special abilities like Spy)
+   */
+  showUnitUI(unit) {
+    const uiScene = this.scene.scene.get('UIScene');
+    if (uiScene && uiScene.showUnitPanel) {
+      uiScene.showUnitPanel(unit);
+    }
+  }
+
+  /**
+   * Hide unit UI
+   */
+  hideUnitUI() {
+    const uiScene = this.scene.scene.get('UIScene');
+    if (uiScene && uiScene.hideUnitPanel) {
+      uiScene.hideUnitPanel();
+    }
+  }
+
+  /**
    * Find unit at world position (only player faction units)
    */
   findUnitAtPosition(worldX, worldY) {
@@ -345,6 +382,7 @@ export default class SelectionManager {
   clearSelection() {
     this.selectedUnits.forEach(unit => unit.setSelected(false));
     this.selectedUnits = [];
+    this.hideUnitUI(); // Hide any unit ability panels
     this.updateUI();
   }
 
@@ -352,6 +390,18 @@ export default class SelectionManager {
    * Update UI with current selection
    */
   updateUI() {
+    // Check if single unit with abilities is selected (like Spy)
+    if (this.selectedUnits.length === 1) {
+      const unit = this.selectedUnits[0];
+      // Show ability panel for Spy (and potentially other special units)
+      if (unit.unitType === 'spy') {
+        this.showUnitUI(unit);
+        return;
+      }
+    }
+
+    // Hide unit panel if no special unit selected
+    this.hideUnitUI();
     const uiScene = this.scene.scene.get('UIScene');
     if (uiScene && uiScene.updateUnitInfo) {
       uiScene.updateUnitInfo(this.selectedUnits);
@@ -430,5 +480,18 @@ export default class SelectionManager {
     this.selectedUnits.forEach(unit => {
       unit.moveTo(worldX, worldY);
     });
+  }
+
+  /**
+   * Update method - call from game loop for cleanup
+   */
+  update() {
+    // Safety cleanup: if selection box exists but no button is down, clean up
+    if (this.selectionBox && this.scene.input.activePointer) {
+      const pointer = this.scene.input.activePointer;
+      if (!pointer.leftButtonDown() && !pointer.isDown) {
+        this.cancelBoxSelection();
+      }
+    }
   }
 }

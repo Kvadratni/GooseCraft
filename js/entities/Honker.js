@@ -1,24 +1,25 @@
 // Honker Unit - Heavy/Artillery combat unit
 
 import CombatUnit from './CombatUnit.js';
-import { UNIT } from '../utils/Constants.js';
+import { UNIT, UNIT_STATS } from '../utils/Constants.js';
 
 export default class Honker extends CombatUnit {
   constructor(scene, x, y, faction) {
+    const stats = UNIT_STATS.HONKER;
     const config = {
       type: 'honker',
-      health: 200,           // Highest HP - heavy unit
-      speed: UNIT.SPEED_HONKER || 80,  // Very slow movement
-      damage: 25,            // High damage per hit
-      attackRange: 150,      // Artillery range
-      attackSpeed: 2500,     // Very slow attack speed
-      engagementRange: 250,  // Long engagement range
-      spriteKey: 'tank',     // Heavy vehicle sprite
-      size: 40               // Larger size
+      health: stats.health,
+      speed: UNIT.SPEED_HONKER || stats.speed,
+      damage: stats.damage,
+      attackRange: stats.attackRange,
+      attackSpeed: stats.attackSpeed,
+      engagementRange: stats.engagementRange,
+      spriteKey: 'tank',
+      size: 40
     };
 
     super(scene, x, y, config, faction);
 
-    console.log('Honker unit created');
+    console.log('Honker unit created - Heavy artillery');
   }
 }

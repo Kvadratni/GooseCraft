@@ -12,6 +12,10 @@ import FogOfWar from '../systems/FogOfWar.js';
 import SoundManager from '../systems/SoundManager.js';
 import SpatialHash from '../utils/SpatialHash.js';
 import Goose from '../entities/Goose.js';
+import Guard from '../entities/Guard.js';
+import Scout from '../entities/Scout.js';
+import Spy from '../entities/Spy.js';
+import Honker from '../entities/Honker.js';
 import ResourceNode from '../entities/ResourceNode.js';
 import Coop from '../buildings/Coop.js';
 
@@ -55,6 +59,9 @@ export default class GameScene extends Phaser.Scene {
     this.buildings = [];
     this.resourceNodes = [];
 
+    // Expose unit classes for debug console commands
+    this.unitClasses = { Goose, Guard, Scout, Spy, Honker };
+
     // Store base spawn location
     this.baseSpawnGrid = null;
 
@@ -83,7 +90,10 @@ export default class GameScene extends Phaser.Scene {
     // Update camera controls
     this.updateCameraControls(delta);
 
-    // Update custom cursor position
+    // Update selection manager (cleanup stuck selection boxes)
+    if (this.selectionManager) {
+      this.selectionManager.update();
+    }
 
     // Update AI manager
     if (this.aiManager) {
@@ -475,6 +485,9 @@ export default class GameScene extends Phaser.Scene {
       } else {
         this.selectionManager.handlePointerMove(pointer);
       }
+
+      // Update cursor based on what's under the pointer
+      this.updateCursor(pointer);
     });
 
     this.input.on('pointerup', (pointer) => {
@@ -604,6 +617,108 @@ export default class GameScene extends Phaser.Scene {
       const distance = Phaser.Math.Distance.Between(worldX, worldY, building.x, building.y);
       if (distance < clickRadius) {
         console.log(`GameScene: Found building ${building.buildingName} at (${building.x}, ${building.y})`);
+        return building;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Find enemy unit at position
+   */
+  findEnemyAtPosition(worldX, worldY) {
+    const clickRadius = 40;
+
+    for (let i = this.units.length - 1; i >= 0; i--) {
+      const unit = this.units[i];
+      if (!unit.active) continue;
+      if (unit.faction !== FACTIONS.ENEMY_AI) continue;
+
+      const distance = Phaser.Math.Distance.Between(worldX, worldY, unit.x, unit.y);
+      if (distance < clickRadius) {
+        return unit;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Update cursor based on what's under the mouse pointer
+   */
+  updateCursor(pointer) {
+    // Don't change cursor if in building placement mode
+    if (this.buildingManager && this.buildingManager.isInPlacementMode()) {
+      this.input.setDefaultCursor('default');
+      return;
+    }
+
+    // Get world position
+    const camera = this.cameras.main;
+    const worldPoint = camera.getWorldPoint(pointer.x, pointer.y);
+    const worldX = worldPoint.x;
+    const worldY = worldPoint.y;
+
+    // Check for hovering over enemy units/buildings first (attack cursor)
+    const enemyUnit = this.findEnemyAtPosition(worldX, worldY);
+    const building = this.findBuildingAtPositionSilent(worldX, worldY);
+
+    if (enemyUnit || (building && building.faction === FACTIONS.ENEMY_AI)) {
+      // Attack cursor - crosshair for enemies
+      this.input.setDefaultCursor('crosshair');
+      return;
+    }
+
+    // Check for hovering over resources (gather cursor)
+    const resource = this.findResourceAtPositionSilent(worldX, worldY);
+    if (resource && resource.hasResources()) {
+      // Gather cursor - grab for resources
+      this.input.setDefaultCursor('grab');
+      return;
+    }
+
+    // Check for hovering over own buildings (pointer for interaction)
+    if (building && building.faction === FACTIONS.PLAYER) {
+      this.input.setDefaultCursor('pointer');
+      return;
+    }
+
+    // Default cursor for walkable terrain
+    this.input.setDefaultCursor('default');
+  }
+
+  /**
+   * Find resource at position (silent - no logging)
+   */
+  findResourceAtPositionSilent(worldX, worldY) {
+    const clickRadius = 60;
+
+    for (let i = this.resourceNodes.length - 1; i >= 0; i--) {
+      const node = this.resourceNodes[i];
+      if (!node.active) continue;
+
+      const distance = Phaser.Math.Distance.Between(worldX, worldY, node.x, node.y);
+      if (distance < clickRadius) {
+        return node;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Find building at position (silent - no logging)
+   */
+  findBuildingAtPositionSilent(worldX, worldY) {
+    const clickRadius = 80;
+
+    for (let i = this.buildings.length - 1; i >= 0; i--) {
+      const building = this.buildings[i];
+      if (!building.active) continue;
+
+      const distance = Phaser.Math.Distance.Between(worldX, worldY, building.x, building.y);
+      if (distance < clickRadius) {
         return building;
       }
     }

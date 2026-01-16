@@ -36,4 +36,195 @@ const config = {
 // Create and start the game
 const game = new Phaser.Game(config);
 
+// Debug console commands (access via window.gc in browser console)
+window.gc = {
+  // Get scenes
+  game: () => game.scene.getScene('GameScene'),
+  ui: () => game.scene.getScene('UIScene'),
+
+  // Add resources
+  addFood: (amount = 100) => {
+    const ui = game.scene.getScene('UIScene');
+    if (ui) { ui.updateResources({ food: amount }); console.log(`Added ${amount} food`); }
+  },
+  addWater: (amount = 100) => {
+    const ui = game.scene.getScene('UIScene');
+    if (ui) { ui.updateResources({ water: amount }); console.log(`Added ${amount} water`); }
+  },
+  addSticks: (amount = 100) => {
+    const ui = game.scene.getScene('UIScene');
+    if (ui) { ui.updateResources({ sticks: amount }); console.log(`Added ${amount} sticks`); }
+  },
+  addStone: (amount = 100) => {
+    const ui = game.scene.getScene('UIScene');
+    if (ui) { ui.updateResources({ stone: amount }); console.log(`Added ${amount} stone`); }
+  },
+  addTools: (amount = 100) => {
+    const ui = game.scene.getScene('UIScene');
+    if (ui) { ui.updateResources({ tools: amount }); console.log(`Added ${amount} tools`); }
+  },
+  addAll: (amount = 500) => {
+    const ui = game.scene.getScene('UIScene');
+    if (ui) {
+      ui.updateResources({ food: amount, water: amount, sticks: amount, stone: amount, tools: amount });
+      console.log(`Added ${amount} of all resources`);
+    }
+  },
+
+  // Spawn units at camera center or specified position
+  spawn: (unitType, x, y) => {
+    const gs = game.scene.getScene('GameScene');
+    if (!gs) { console.log('GameScene not ready'); return; }
+
+    // Default to camera center if no position
+    if (x === undefined) {
+      x = gs.cameras.main.scrollX + gs.cameras.main.width / 2;
+      y = gs.cameras.main.scrollY + gs.cameras.main.height / 2;
+    }
+
+    const validTypes = ['worker', 'guard', 'scout', 'spy', 'honker'];
+    if (!validTypes.includes(unitType?.toLowerCase())) {
+      console.log(`Invalid unit type. Valid types: ${validTypes.join(', ')}`);
+      return;
+    }
+
+    let unit;
+    const type = unitType.toLowerCase();
+    const { FACTIONS } = gs.constructor.dependencies || {};
+    const faction = 'PLAYER';
+
+    switch (type) {
+      case 'worker':
+        const Goose = gs.unitClasses?.Goose;
+        if (Goose) unit = new Goose(gs, x, y, faction);
+        break;
+      case 'guard':
+        const Guard = gs.unitClasses?.Guard;
+        if (Guard) unit = new Guard(gs, x, y, faction);
+        break;
+      case 'scout':
+        const Scout = gs.unitClasses?.Scout;
+        if (Scout) unit = new Scout(gs, x, y, faction);
+        break;
+      case 'spy':
+        const Spy = gs.unitClasses?.Spy;
+        if (Spy) unit = new Spy(gs, x, y, faction);
+        break;
+      case 'honker':
+        const Honker = gs.unitClasses?.Honker;
+        if (Honker) unit = new Honker(gs, x, y, faction);
+        break;
+    }
+
+    if (unit) {
+      gs.units.push(unit);
+      console.log(`Spawned ${type} at (${Math.round(x)}, ${Math.round(y)})`);
+      return unit;
+    } else {
+      console.log(`Failed to spawn ${type} - class not loaded`);
+    }
+  },
+
+  // Spawn enemy unit
+  spawnEnemy: (unitType, x, y) => {
+    const gs = game.scene.getScene('GameScene');
+    if (!gs) { console.log('GameScene not ready'); return; }
+
+    if (x === undefined) {
+      x = gs.cameras.main.scrollX + gs.cameras.main.width / 2;
+      y = gs.cameras.main.scrollY + gs.cameras.main.height / 2;
+    }
+
+    const validTypes = ['worker', 'guard', 'scout', 'spy', 'honker'];
+    if (!validTypes.includes(unitType?.toLowerCase())) {
+      console.log(`Invalid unit type. Valid types: ${validTypes.join(', ')}`);
+      return;
+    }
+
+    let unit;
+    const type = unitType.toLowerCase();
+    const faction = 'ENEMY_AI';
+
+    switch (type) {
+      case 'worker':
+        const Goose = gs.unitClasses?.Goose;
+        if (Goose) unit = new Goose(gs, x, y, faction);
+        break;
+      case 'guard':
+        const Guard = gs.unitClasses?.Guard;
+        if (Guard) unit = new Guard(gs, x, y, faction);
+        break;
+      case 'scout':
+        const Scout = gs.unitClasses?.Scout;
+        if (Scout) unit = new Scout(gs, x, y, faction);
+        break;
+      case 'spy':
+        const Spy = gs.unitClasses?.Spy;
+        if (Spy) unit = new Spy(gs, x, y, faction);
+        break;
+      case 'honker':
+        const Honker = gs.unitClasses?.Honker;
+        if (Honker) unit = new Honker(gs, x, y, faction);
+        break;
+    }
+
+    if (unit) {
+      gs.units.push(unit);
+      console.log(`Spawned enemy ${type} at (${Math.round(x)}, ${Math.round(y)})`);
+      return unit;
+    } else {
+      console.log(`Failed to spawn ${type} - class not loaded`);
+    }
+  },
+
+  // Kill all enemy units
+  killEnemies: () => {
+    const gs = game.scene.getScene('GameScene');
+    if (!gs) return;
+    let count = 0;
+    gs.units.forEach(u => {
+      if (u.faction === 'ENEMY_AI') { u.die(); count++; }
+    });
+    console.log(`Killed ${count} enemy units`);
+  },
+
+  // Unlock all buildings
+  unlockAll: () => {
+    const gs = game.scene.getScene('GameScene');
+    if (gs?.buildingUnlockManager) {
+      gs.buildingUnlockManager.unlockAll();
+      console.log('All buildings unlocked');
+    }
+  },
+
+  // Show help
+  help: () => {
+    console.log(`
+GooseCraft Debug Commands (gc.command):
+─────────────────────────────────────────
+Resources:
+  gc.addFood(amount)     - Add food (default 100)
+  gc.addWater(amount)    - Add water
+  gc.addSticks(amount)   - Add sticks
+  gc.addStone(amount)    - Add stone
+  gc.addTools(amount)    - Add tools
+  gc.addAll(amount)      - Add all resources (default 500)
+
+Units:
+  gc.spawn(type, x, y)      - Spawn player unit at position
+  gc.spawnEnemy(type, x, y) - Spawn enemy unit
+  Valid types: worker, guard, scout, spy, honker
+  (omit x,y to spawn at camera center)
+
+Other:
+  gc.unlockAll()    - Unlock all buildings
+  gc.killEnemies()  - Kill all enemy units
+  gc.game()         - Get GameScene reference
+  gc.ui()           - Get UIScene reference
+─────────────────────────────────────────
+    `);
+  }
+};
+
 console.log('GooseCraft initialized!');
+console.log('Debug commands available: type gc.help() in console');

@@ -80,8 +80,8 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
         this.add(waterHighlight);
         this.waterHighlight = waterHighlight;
 
-        // Add capacity text
-        this.capacityText = this.scene.add.text(0, 30, `${Math.floor(this.currentCapacity)}`, {
+        // Add capacity text (hidden by default, shown on hover)
+        this.capacityText = this.scene.add.text(0, 30, `${Math.floor(this.currentCapacity)}/${Math.floor(this.maxCapacity)}`, {
           fontSize: '12px',
           fill: '#ffffff',
           fontFamily: 'Arial',
@@ -89,7 +89,9 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
           strokeThickness: 2
         });
         this.capacityText.setOrigin(0.5);
+        this.capacityText.setVisible(false);
         this.add(this.capacityText);
+        this.setupHoverInteraction();
         return; // Exit early for water
 
       case 'sticks':
@@ -113,8 +115,8 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
         this.resourceSprite = stoneCircle;
         this.iconSprite = stoneIcon;
 
-        // Add capacity text
-        this.capacityText = this.scene.add.text(0, 32, `${Math.floor(this.currentCapacity)}`, {
+        // Add capacity text (hidden by default, shown on hover)
+        this.capacityText = this.scene.add.text(0, 32, `${Math.floor(this.currentCapacity)}/${Math.floor(this.maxCapacity)}`, {
           fontSize: '12px',
           fill: '#ffffff',
           fontFamily: 'Arial',
@@ -122,7 +124,9 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
           strokeThickness: 2
         });
         this.capacityText.setOrigin(0.5);
+        this.capacityText.setVisible(false);
         this.add(this.capacityText);
+        this.setupHoverInteraction();
         return; // Exit early for stone
       default:
         console.warn(`Unknown resource type: ${this.resourceType}`);
@@ -170,8 +174,8 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
     }
     this.add(this.resourceSprite);
 
-    // Capacity indicator
-    this.capacityText = this.scene.add.text(0, 30, `${Math.floor(this.currentCapacity)}`, {
+    // Capacity indicator (hidden by default, shown on hover)
+    this.capacityText = this.scene.add.text(0, 30, `${Math.floor(this.currentCapacity)}/${Math.floor(this.maxCapacity)}`, {
       fontSize: '12px',
       fill: '#ffffff',
       fontFamily: 'Arial',
@@ -179,7 +183,9 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
       strokeThickness: 3
     });
     this.capacityText.setOrigin(0.5);
+    this.capacityText.setVisible(false);
     this.add(this.capacityText);
+    this.setupHoverInteraction();
 
     console.log(`ResourceNode: Created ${this.resourceType} sprite with key: ${spriteKey}, frame: ${frame}`);
     console.log(`ResourceNode: Sprite properties - visible: ${this.resourceSprite.visible}, alpha: ${this.resourceSprite.alpha}, scale: ${scale}`);
@@ -230,9 +236,9 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
    * Update visual based on current capacity
    */
   updateVisual() {
-    // Update capacity text
+    // Update capacity text (X/Y format)
     if (this.capacityText) {
-      this.capacityText.setText(`${Math.floor(this.currentCapacity)}`);
+      this.capacityText.setText(`${Math.floor(this.currentCapacity)}/${Math.floor(this.maxCapacity)}`);
     }
 
     // Change appearance based on capacity
@@ -269,10 +275,9 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
       }
     }
 
-    // Update text color based on capacity
+    // Update text color based on capacity (no "Empty" text - just hide when depleted)
     if (this.capacityText) {
       if (this.isDepleted) {
-        this.capacityText.setText('Empty');
         this.capacityText.setStyle({ fill: '#ff0000' });
       } else if (percentRemaining < 0.25) {
         this.capacityText.setStyle({ fill: '#ffaa00' });
@@ -362,5 +367,28 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
    */
   getCapacity() {
     return this.currentCapacity;
+  }
+
+  /**
+   * Setup hover interaction to show/hide capacity text
+   */
+  setupHoverInteraction() {
+    // Make the container interactive
+    this.setSize(this.size, this.size);
+    this.setInteractive({ useHandCursor: false });
+
+    // Show capacity text on hover
+    this.on('pointerover', () => {
+      if (this.capacityText) {
+        this.capacityText.setVisible(true);
+      }
+    });
+
+    // Hide capacity text when mouse leaves
+    this.on('pointerout', () => {
+      if (this.capacityText) {
+        this.capacityText.setVisible(false);
+      }
+    });
   }
 }

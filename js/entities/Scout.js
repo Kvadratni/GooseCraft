@@ -1,24 +1,25 @@
 // Scout Unit - Fast/Ranged combat unit
 
 import CombatUnit from './CombatUnit.js';
-import { UNIT } from '../utils/Constants.js';
+import { UNIT, UNIT_STATS } from '../utils/Constants.js';
 
 export default class Scout extends CombatUnit {
   constructor(scene, x, y, faction) {
+    const stats = UNIT_STATS.SCOUT;
     const config = {
       type: 'scout',
-      health: 70,            // Low HP - glass cannon
-      speed: UNIT.SPEED_SCOUT || 150,  // Very fast movement
-      damage: 8,             // Low damage per hit
-      attackRange: 120,      // Ranged attack
-      attackSpeed: 800,      // Fast attack speed
-      engagementRange: 250,  // Long engagement range
-      spriteKey: 'civilian', // Fast civilian sprite
+      health: stats.health,
+      speed: UNIT.SPEED_SCOUT || stats.speed,
+      damage: stats.damage,
+      attackRange: stats.attackRange,
+      attackSpeed: stats.attackSpeed,
+      engagementRange: stats.engagementRange,
+      spriteKey: 'civilian',
       size: 32
     };
 
     super(scene, x, y, config, faction);
 
-    console.log('Scout unit created');
+    console.log('Scout unit created - Fast ranged harasser');
   }
 }

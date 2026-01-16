@@ -26,6 +26,10 @@ export default class Building extends Phaser.GameObjects.Container {
     this.footprint = config.footprint || [[0, 0]];
     this.blocksPathfinding = true;
 
+    // Sabotage state (set by enemy spies)
+    this.isSabotaged = false;
+    this.sabotageEndTime = 0;
+
     // Visual properties
     this.spriteKey = config.spriteKey || 'command-center';
     this.size = config.size || 64;
@@ -217,6 +221,51 @@ export default class Building extends Phaser.GameObjects.Container {
    */
   onConstructionComplete() {
     // Subclasses can override
+  }
+
+  /**
+   * Set building as sabotaged (disabled) for a duration
+   */
+  setSabotaged(duration) {
+    this.isSabotaged = true;
+    this.sabotageEndTime = this.scene.time.now + duration;
+
+    // Visual feedback - gray tint
+    if (this.sprite) {
+      this.sprite.setTint(0x666666);
+    }
+
+    console.log(`Building ${this.buildingName}: SABOTAGED for ${duration / 1000}s!`);
+
+    // Schedule end of sabotage
+    this.scene.time.delayedCall(duration, () => {
+      this.endSabotage();
+    });
+  }
+
+  /**
+   * End sabotage state
+   */
+  endSabotage() {
+    if (this.isSabotaged) {
+      this.isSabotaged = false;
+      this.sabotageEndTime = 0;
+
+      // Restore visual
+      if (this.sprite) {
+        this.sprite.clearTint();
+        this.applyFactionEffect();
+      }
+
+      console.log(`Building ${this.buildingName}: Sabotage ended, resuming operations`);
+    }
+  }
+
+  /**
+   * Check if building is operational (not under construction or sabotaged)
+   */
+  isOperational() {
+    return this.state === BUILDING_STATES.OPERATIONAL && !this.isSabotaged;
   }
 
   /**

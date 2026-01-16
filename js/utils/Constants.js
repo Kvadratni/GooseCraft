@@ -94,7 +94,7 @@ export const BUILDING = {
     height: 128,
     footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
     health: 250,
-    cost: { food: 75, water: 100, sticks: 150, tools: 20 },
+    cost: { food: 75, water: 100, sticks: 150, stone: 100, tools: 20 },
     constructionTime: 18000,
     tier: 3,
     buildable: true,
@@ -108,7 +108,7 @@ export const BUILDING = {
     height: 128,
     footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
     health: 400,
-    cost: { food: 150, water: 0, sticks: 250, tools: 25 },
+    cost: { food: 150, water: 0, sticks: 250, stone: 150, tools: 25 },
     constructionTime: 25000,
     tier: 3,
     buildable: true,
@@ -122,7 +122,7 @@ export const BUILDING = {
     height: 128,
     footprint: [[0,0]], // 1x1
     health: 300,
-    cost: { food: 75, water: 25, sticks: 200, tools: 15 },
+    cost: { food: 75, water: 25, sticks: 200, stone: 100, tools: 15 },
     constructionTime: 12000,
     tier: 3,
     buildable: true,
@@ -136,7 +136,7 @@ export const BUILDING = {
     height: 128,
     footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
     health: 250,
-    cost: { food: 0, water: 100, sticks: 300, tools: 50 },
+    cost: { food: 0, water: 100, sticks: 300, stone: 200, tools: 50 },
     constructionTime: 30000,
     tier: 3,
     buildable: true,
@@ -198,7 +198,7 @@ export const BUILDING = {
     height: 64,
     footprint: [[0,0]], // 1x1
     health: 100,
-    cost: { food: 25, water: 0, sticks: 75, stone: 25, tools: 3 },
+    cost: { food: 25, water: 0, sticks: 75, tools: 3 },
     constructionTime: 8000,
     tier: 2,
     buildable: true,
@@ -373,6 +373,80 @@ export const UNIT_TRAIN_TIME = {
   SPY: 10000,     // 10 seconds
   HONKER: 12000,  // 12 seconds
   AIR_UNIT: 10000 // 10 seconds
+};
+
+// Unit Combat Stats
+export const UNIT_STATS = {
+  WORKER: {
+    health: 50,
+    speed: 100,
+    damage: 0,
+    attackRange: 0,
+    attackSpeed: 0,
+    engagementRange: 0,
+    description: 'Gatherer - collects resources'
+  },
+  GUARD: {
+    health: 150,
+    speed: 90,
+    damage: 15,
+    attackRange: 80,        // Melee
+    attackSpeed: 1500,
+    engagementRange: 200,
+    description: 'Tank - high HP, melee fighter'
+  },
+  SCOUT: {
+    health: 70,
+    speed: 150,
+    damage: 8,
+    attackRange: 120,       // Ranged
+    attackSpeed: 800,
+    engagementRange: 250,
+    description: 'Harasser - fast, ranged attacks'
+  },
+  SPY: {
+    health: 50,
+    speed: 130,
+    damage: 5,
+    attackRange: 60,
+    attackSpeed: 1200,
+    engagementRange: 100,
+    stealthDetectionRange: 80,  // Enemies detect spy within this range
+    sabotageDuration: 30000,    // 30 seconds building disabled
+    sabotageCooldown: 60000,    // 60 seconds between sabotages
+    stealAmount: 25,            // Resources stolen per use
+    stealCooldown: 45000,       // 45 seconds between steals
+    description: 'Saboteur - disables buildings, steals resources'
+  },
+  HONKER: {
+    health: 200,
+    speed: 80,
+    damage: 25,
+    attackRange: 150,       // Artillery
+    attackSpeed: 2500,
+    engagementRange: 250,
+    description: 'Artillery - slow, heavy damage'
+  },
+  AIR_UNIT: {
+    health: 100,
+    speed: 180,
+    damage: 12,
+    attackRange: 130,
+    attackSpeed: 1000,
+    engagementRange: 200,
+    description: 'Air Strike - fast, mobile attacker'
+  }
+};
+
+// Building Combat Stats (for defensive buildings)
+export const BUILDING_COMBAT = {
+  WATCHTOWER: {
+    damage: 10,
+    attackRange: 200,
+    attackSpeed: 1500,
+    visionRange: 12,        // tiles
+    spyDetectionRange: 150  // Extended range to detect spies
+  }
 };
 
 // Colors

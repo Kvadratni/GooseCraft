@@ -22,6 +22,7 @@ export default class Factory extends Building {
     // Tool production settings
     this.sticksPerTool = TOOL_PRODUCTION.STICKS_PER_TOOL;
     this.autoProduction = TOOL_PRODUCTION.AUTO_PRODUCTION;
+    this.isPaused = false; // Can pause auto-production
 
     // Auto-production timer (only used if auto-production is enabled)
     this.autoProductionTimer = 0;
@@ -63,6 +64,10 @@ export default class Factory extends Building {
    */
   queueToolProduction() {
     if (this.faction !== 'PLAYER') return false;
+    if (this.isSabotaged) {
+      console.log('Factory: Cannot produce - building is sabotaged!');
+      return false;
+    }
 
     const resourceManager = this.scene.resourceManager;
     if (!resourceManager) return false;
@@ -85,8 +90,8 @@ export default class Factory extends Building {
    * Update auto-production (if enabled via research)
    */
   updateProduction(delta) {
-    // Only process player faction with auto-production enabled
-    if (this.faction !== 'PLAYER' || !this.autoProduction) return;
+    // Only process player faction with auto-production enabled, not paused, and not sabotaged
+    if (this.faction !== 'PLAYER' || !this.autoProduction || this.isPaused || this.isSabotaged) return;
 
     const resourceManager = this.scene.resourceManager;
     if (!resourceManager) return;
@@ -113,6 +118,15 @@ export default class Factory extends Building {
   }
 
   /**
+   * Toggle auto-production pause state
+   */
+  togglePause() {
+    this.isPaused = !this.isPaused;
+    console.log(`Factory: Auto-production ${this.isPaused ? 'paused' : 'resumed'}`);
+    return this.isPaused;
+  }
+
+  /**
    * Reduce production cost (called by Research Center upgrade)
    */
   reduceCost(newSticksPerTool) {
@@ -127,7 +141,8 @@ export default class Factory extends Building {
     return {
       isProducing: false, // Instant conversion, no progress bar needed
       cost: this.sticksPerTool,
-      autoProduction: this.autoProduction
+      autoProduction: this.autoProduction,
+      isPaused: this.isPaused
     };
   }
 

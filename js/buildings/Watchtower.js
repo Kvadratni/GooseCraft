@@ -61,8 +61,8 @@ export default class Watchtower extends Building {
   update(time, delta) {
     super.update(time, delta);
 
-    // Only attack when operational
-    if (this.state !== 'OPERATIONAL') {
+    // Only attack when operational and not sabotaged
+    if (this.state !== 'OPERATIONAL' || this.isSabotaged) {
       return;
     }
 
