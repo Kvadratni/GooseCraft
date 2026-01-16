@@ -1,6 +1,6 @@
 // UI Scene - HUD Overlay
 
-import { STARTING_RESOURCES, GAME_CONFIG, UI, BUILDING, FACTION_COLORS, FACTIONS } from '../utils/Constants.js';
+import { STARTING_RESOURCES, GAME_CONFIG, UI, BUILDING, FACTION_COLORS, FACTIONS, STORAGE, UNIT_COSTS } from '../utils/Constants.js';
 import Goose from '../entities/Goose.js';
 import { createStyledButton } from '../ui/StyledButton.js';
 import { worldToGridInt } from '../utils/IsometricUtils.js';
@@ -66,27 +66,59 @@ export default class UIScene extends Phaser.Scene {
    * Reposition all UI elements after resize
    */
   repositionUI() {
-    // Update top bar background width
+    // Update top bar (fixed width, positioned at left)
     if (this.topBarBg) {
-      this.topBarBg.width = this.screenWidth;
+      const barWidth = 550;
+      const barHeight = this.topBarHeight || 35;
+      this.topBarBg.setDisplaySize(barWidth, barHeight);
+      this.topBarBg.x = barWidth / 2;
     }
 
     // Update build menu position
     if (this.buildMenuBg) {
-      const menuX = this.screenWidth - 220;
+      const menuWidth = 215;
+      const menuY = 45;
+      const menuHeight = (this.screenHeight - menuY - 10) * 0.65;
+      const menuX = this.screenWidth - menuWidth - 5;
+
       this.buildMenuX = menuX;
-      this.buildMenuBg.x = menuX;
+      this.buildMenuY = menuY;
+      this.buildMenuWidth = menuWidth;
+      this.buildMenuHeight = menuHeight;
+      this.buildMenuBg.x = menuX + menuWidth / 2;
+      this.buildMenuBg.y = menuY + menuHeight / 2;
+      this.buildMenuBg.setDisplaySize(menuWidth, menuHeight);
       // Refresh build menu buttons
       this.updateBuildMenu();
     }
 
     // Update minimap position
     if (this.minimapBg) {
-      const minimapY = this.screenHeight - this.minimapSize - 50;
+      const frameScale = 0.4;
+      const frameWidth = 620 * frameScale;
+      const frameHeight = 508 * frameScale;
+      const frameX = 15;
+      const frameY = this.screenHeight - frameHeight - 10;
+
+      const contentPadding = { left: 22, top: 32, right: 22, bottom: 18 };
+      const minimapWidth = frameWidth - contentPadding.left - contentPadding.right;
+      const minimapHeight = frameHeight - contentPadding.top - contentPadding.bottom;
+      const minimapSize = Math.min(minimapWidth, minimapHeight);
+      const minimapX = frameX + contentPadding.left + (minimapWidth - minimapSize) / 2;
+      const minimapY = frameY + contentPadding.top + (minimapHeight - minimapSize) / 2;
+
+      this.minimapX = minimapX;
       this.minimapY = minimapY;
-      this.minimapBg.y = minimapY - 30;
-      if (this.minimapLabel) this.minimapLabel.y = minimapY - 20;
-      if (this.minimapBorder) this.minimapBorder.y = minimapY;
+      this.minimapSize = minimapSize;
+      this.minimapFrameY = frameY;
+
+      this.minimapBg.x = frameX + frameWidth / 2;
+      this.minimapBg.y = frameY + frameHeight / 2;
+      if (this.minimapBorder) {
+        this.minimapBorder.x = minimapX;
+        this.minimapBorder.y = minimapY;
+        this.minimapBorder.setSize(minimapSize, minimapSize);
+      }
       this.minimapTerrainCached = false; // Force terrain redraw
     }
 
@@ -118,6 +150,32 @@ export default class UIScene extends Phaser.Scene {
 
     // Update minimap viewport every frame for smooth tracking
     this.updateMinimapViewportOnly();
+
+    // Update building panel progress bar (every 100ms for smooth animation)
+    if (this.buildingPanelContainer?.visible && this.selectedBuilding) {
+      this.panelRefreshTimer = (this.panelRefreshTimer || 0) + delta;
+      if (this.panelRefreshTimer > 100) {
+        this.updateProgressBar();
+        this.panelRefreshTimer = 0;
+      }
+
+      // Refresh building panel affordability states (every 1 second)
+      this.panelAffordabilityTimer = (this.panelAffordabilityTimer || 0) + delta;
+      if (this.panelAffordabilityTimer > 1000) {
+        this.showBuildingPanel(this.selectedBuilding);
+        this.panelAffordabilityTimer = 0;
+      }
+    }
+
+    // Periodically update build menu to refresh affordability (every 500ms)
+    if (!this.buildMenuRefreshTimer) {
+      this.buildMenuRefreshTimer = 0;
+    }
+    this.buildMenuRefreshTimer += delta;
+    if (this.buildMenuRefreshTimer > 500) {
+      this.updateBuildMenu();
+      this.buildMenuRefreshTimer = 0;
+    }
   }
 
   /**
@@ -145,100 +203,89 @@ export default class UIScene extends Phaser.Scene {
    * Create top bar with resources and title
    */
   createTopBar() {
-    const barHeight = 50;
+    // Top bar image: 842x93 original size - make it smaller and only wide enough for resources
+    const barHeight = 35;
+    const barWidth = 550; // Just enough to fit resources
 
-    // Background - use current screen width
-    this.topBarBg = this.add.rectangle(0, 0, this.screenWidth, barHeight, 0x1a1a1a, 0.9);
-    this.topBarBg.setOrigin(0, 0);
+    // Background image - positioned at left, only wide enough for content
+    this.topBarBg = this.add.image(barWidth / 2, barHeight / 2, 'ui-top-bar');
+    this.topBarBg.setDisplaySize(barWidth, barHeight);
     this.topBarBg.setDepth(1000);
 
-    // Game title
-    this.add.text(20, 15, 'GooseCraft', {
-      fontSize: '24px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 4
-    }).setDepth(1001);
-
-    // Resource display
-    const resourceX = 200;
-    const resourceY = 15;
-    const spacing = 110; // Reduced to fit 5 resources
+    // Resource display - centered vertically on the bar, starting from left
+    const resourceX = 35;
+    const resourceY = barHeight / 2;
+    const spacing = 105;
 
     // Food
-    this.foodText = this.add.text(resourceX, resourceY, `🌾 ${this.resources.food}`, {
-      fontSize: '16px',
-      fill: '#FFD700',
+    this.foodText = this.add.text(resourceX, resourceY, `🌾 ${this.resources.food}/${STORAGE.FOOD}`, {
+      fontSize: '15px',
+      fill: '#f5deb3',
       fontFamily: 'Arial',
-      stroke: '#000000',
-      strokeThickness: 3
-    }).setDepth(1001);
+      stroke: '#3d2817',
+      strokeThickness: 2
+    }).setOrigin(0, 0.5).setDepth(1001);
 
     // Water
-    this.waterText = this.add.text(resourceX + spacing, resourceY, `💧 ${this.resources.water}`, {
-      fontSize: '16px',
-      fill: '#42A5F5',
+    this.waterText = this.add.text(resourceX + spacing, resourceY, `💧 ${this.resources.water}/${STORAGE.WATER}`, {
+      fontSize: '15px',
+      fill: '#87ceeb',
       fontFamily: 'Arial',
-      stroke: '#000000',
-      strokeThickness: 3
-    }).setDepth(1001);
+      stroke: '#3d2817',
+      strokeThickness: 2
+    }).setOrigin(0, 0.5).setDepth(1001);
 
     // Sticks
-    this.sticksText = this.add.text(resourceX + spacing * 2, resourceY, `🪵 ${this.resources.sticks}`, {
-      fontSize: '16px',
-      fill: '#8D6E63',
+    this.sticksText = this.add.text(resourceX + spacing * 2, resourceY, `🪵 ${this.resources.sticks}/${STORAGE.STICKS}`, {
+      fontSize: '15px',
+      fill: '#deb887',
       fontFamily: 'Arial',
-      stroke: '#000000',
-      strokeThickness: 3
-    }).setDepth(1001);
+      stroke: '#3d2817',
+      strokeThickness: 2
+    }).setOrigin(0, 0.5).setDepth(1001);
 
     // Stone
-    this.stoneText = this.add.text(resourceX + spacing * 3, resourceY, `🪨 ${this.resources.stone || 0}`, {
-      fontSize: '16px',
-      fill: '#757575',
+    this.stoneText = this.add.text(resourceX + spacing * 3, resourceY, `🪨 ${this.resources.stone || 0}/${STORAGE.STONE}`, {
+      fontSize: '15px',
+      fill: '#a9a9a9',
       fontFamily: 'Arial',
-      stroke: '#000000',
-      strokeThickness: 3
-    }).setDepth(1001);
+      stroke: '#3d2817',
+      strokeThickness: 2
+    }).setOrigin(0, 0.5).setDepth(1001);
 
     // Tools
-    this.toolsText = this.add.text(resourceX + spacing * 4, resourceY, `🔧 ${this.resources.tools}`, {
-      fontSize: '16px',
-      fill: '#9E9E9E',
+    this.toolsText = this.add.text(resourceX + spacing * 4, resourceY, `🔧 ${this.resources.tools}/${STORAGE.TOOLS}`, {
+      fontSize: '15px',
+      fill: '#c0c0c0',
       fontFamily: 'Arial',
-      stroke: '#000000',
-      strokeThickness: 3
-    }).setDepth(1001);
+      stroke: '#3d2817',
+      strokeThickness: 2
+    }).setOrigin(0, 0.5).setDepth(1001);
+
+    // Store bar height for repositioning
+    this.topBarHeight = barHeight;
   }
 
   /**
    * Create build menu on the right side
    */
   createBuildMenu() {
-    const menuWidth = 220;
-    const menuX = this.screenWidth - menuWidth;
-    const menuY = 60;
-    const menuHeight = 500;  // Increased for more buildings
+    // Build menu image: 343x917, sized to fit content (not full height)
+    const menuWidth = 215;
+    const menuY = 45; // Below top bar
+    const menuHeight = (this.screenHeight - menuY - 10) * 0.65; // 65% of available height
+    const menuX = this.screenWidth - menuWidth - 5;
 
     // Store menu position
     this.buildMenuX = menuX;
     this.buildMenuY = menuY;
     this.buildMenuWidth = menuWidth;
+    this.buildMenuHeight = menuHeight;
 
-    // Background
-    this.buildMenuBg = this.add.rectangle(menuX, menuY, menuWidth, menuHeight, 0x2a2a2a, 0.9);
-    this.buildMenuBg.setOrigin(0, 0);
+    // Background image (already has "Build Menu" header)
+    this.buildMenuBg = this.add.image(menuX + menuWidth / 2, menuY + menuHeight / 2, 'ui-build-menu');
+    this.buildMenuBg.setDisplaySize(menuWidth, menuHeight);
     this.buildMenuBg.setDepth(1000);
-
-    // Title
-    this.add.text(menuX + 10, menuY + 10, 'Build Menu', {
-      fontSize: '20px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setDepth(1001);
 
     // Store build buttons for updating
     this.buildButtons = [];
@@ -272,7 +319,8 @@ export default class UIScene extends Phaser.Scene {
     }
 
     const unlockManager = gameScene.buildingUnlockManager;
-    let yOffset = 50;
+    const resourceManager = gameScene.resourceManager;
+    let yOffset = 85; // Start well below the "Build Menu" header in the image
 
     // Build button icons for each building type
     const buildingIcons = {
@@ -287,7 +335,7 @@ export default class UIScene extends Phaser.Scene {
       'AIRSTRIP': '✈️'
     };
 
-    // Go through all buildings
+    // Go through all buildings - only show unlocked ones
     for (const buildingKey in BUILDING) {
       const building = BUILDING[buildingKey];
 
@@ -296,117 +344,116 @@ export default class UIScene extends Phaser.Scene {
         continue;
       }
 
+      // Only show unlocked buildings (hidden until unlocked)
       const isUnlocked = unlockManager.isBuildingUnlocked(buildingKey);
+      if (!isUnlocked) {
+        continue; // Skip locked buildings entirely
+      }
+
+      // Check if player can afford it
+      const canAfford = resourceManager ? resourceManager.canAfford(building.cost) : true;
       const btnY = this.buildMenuY + yOffset;
 
-      // Create button (even if locked, show it grayed out)
+      // Create button (grey out if can't afford)
       const button = this.createBuildButton(
-        this.buildMenuX + 10,
+        this.buildMenuX + 8,
         btnY,
         building.displayName,
         building.cost,
         buildingIcons[buildingKey] || '🏗️',
         buildingKey,
-        isUnlocked,
-        unlockManager.getUnlockMessage(buildingKey)
+        canAfford // Grey out based on resources, not unlock status
       );
 
       this.buildButtons.push(button);
-      yOffset += 60;  // Increased spacing
+      yOffset += 58;  // Spacing between buttons
     }
   }
 
   /**
-   * Create a build button
+   * Create a build button (with scroll background)
    */
-  createBuildButton(x, y, label, cost, icon, buildingType, isUnlocked = true, unlockMessage = null) {
-    const btnWidth = 200;
-    const btnHeight = 55;
+  createBuildButton(x, y, label, cost, icon, buildingType, canAfford = true) {
+    // Button image: 279x74, scale to fit menu
+    const btnWidth = 195;
+    const btnHeight = 52;
 
     const button = {};
 
-    // Create styled button using utility
-    const buttonContainer = createStyledButton(
-      this,
-      x + btnWidth / 2,
-      y + btnHeight / 2,
-      '', // No text, we'll add custom content
-      isUnlocked ? () => {
+    // Create button using scroll image
+    const buttonBg = this.add.image(x + btnWidth / 2, y + btnHeight / 2, 'ui-build-button');
+    buttonBg.setDisplaySize(btnWidth, btnHeight);
+    buttonBg.setDepth(1001);
+
+    // Apply grayscale effect if can't afford
+    if (!canAfford) {
+      buttonBg.setTint(0x888888);
+    }
+
+    // Make interactive
+    buttonBg.setInteractive({ useHandCursor: canAfford });
+
+    if (canAfford) {
+      buttonBg.on('pointerdown', () => {
         console.log(`Build: ${label}`);
         this.hideTooltip();
-        // Trigger building placement in GameScene
         const gameScene = this.scene.get('GameScene');
         if (gameScene && gameScene.buildingManager) {
           gameScene.buildingManager.startPlacement(buildingType);
         }
-      } : null,
-      {
-        width: btnWidth,
-        height: btnHeight,
-        cornerRadius: 12,
-        fontSize: '14px',
-        disabled: !isUnlocked
-      }
-    );
-    buttonContainer.setDepth(1001);
+      });
 
-    // Remove default button text (we'll add custom layout)
-    if (buttonContainer.buttonText) {
-      buttonContainer.buttonText.destroy();
+      buttonBg.on('pointerover', () => {
+        buttonBg.setTint(0xddddaa); // Highlight on hover
+        const building = BUILDING[buildingType];
+        if (building && building.description) {
+          const tooltipText = `${building.displayName}\n\n${building.description}\n\nCost: ${this.formatCost(building.cost)}`;
+          this.showTooltip(x - 10, y, tooltipText);
+        }
+      });
+
+      buttonBg.on('pointerout', () => {
+        buttonBg.clearTint();
+        this.hideTooltip();
+      });
+    } else {
+      // Show tooltip even when can't afford
+      buttonBg.on('pointerover', () => {
+        const building = BUILDING[buildingType];
+        if (building) {
+          const tooltipText = `${building.displayName}\n\n${building.description}\n\nCost: ${this.formatCost(building.cost)}\n\n⚠️ Not enough resources`;
+          this.showTooltip(x - 10, y, tooltipText);
+        }
+      });
+
+      buttonBg.on('pointerout', () => {
+        this.hideTooltip();
+      });
     }
 
-    button.bg = buttonContainer;
+    button.bg = buttonBg;
 
     // Icon
-    button.icon = this.add.text(x + 5, y + btnHeight / 2 - 10, icon, {
-      fontSize: '20px'
-    }).setDepth(1002);
+    button.icon = this.add.text(x + 8, y + btnHeight / 2, icon, {
+      fontSize: '16px'
+    }).setOrigin(0, 0.5).setDepth(1002);
+    if (!canAfford) button.icon.setAlpha(0.5);
 
     // Label
-    button.label = this.add.text(x + 35, y + 8, label, {
-      fontSize: '14px',
-      fill: isUnlocked ? '#ffffff' : '#999999',
+    button.label = this.add.text(x + 30, y + btnHeight / 2 - 8, label, {
+      fontSize: '11px',
+      fill: canAfford ? '#3d2817' : '#2a1a0a',
       fontFamily: 'Arial',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 3
+      fontStyle: 'bold'
     }).setDepth(1002);
 
     // Cost display
     const costText = this.formatCost(cost);
-    button.cost = this.add.text(x + 35, y + 28, costText, {
-      fontSize: '11px',
-      fill: isUnlocked ? '#ffffff' : '#999999',
-      fontFamily: 'Arial',
-      stroke: '#000000',
-      strokeThickness: 2
+    button.cost = this.add.text(x + 30, y + btnHeight / 2 + 6, costText, {
+      fontSize: '9px',
+      fill: canAfford ? '#5a4030' : '#3a2a1a',
+      fontFamily: 'Arial'
     }).setDepth(1002);
-
-    // Unlock message for locked buildings
-    if (!isUnlocked && unlockMessage) {
-      button.locked = this.add.text(x + 35, y + 43, unlockMessage, {
-        fontSize: '9px',
-        fill: '#ff9999',
-        fontFamily: 'Arial',
-        stroke: '#000000',
-        strokeThickness: 2
-      }).setDepth(1002);
-    }
-
-    // Add tooltip on hover (only for unlocked)
-    if (isUnlocked) {
-      buttonContainer.on('pointerover', () => {
-        // Show tooltip with full building description
-        const building = BUILDING[buildingType];
-        if (building && building.description) {
-          const tooltipText = `${building.displayName}\n\n${building.description}\n\nCost: ${this.formatCost(building.cost)}`;
-          this.showTooltip(x + 210, y, tooltipText);
-        }
-      });
-      buttonContainer.on('pointerout', () => {
-        this.hideTooltip();
-      });
-    }
 
     return button;
   }
@@ -513,30 +560,32 @@ export default class UIScene extends Phaser.Scene {
    * Create minimap
    */
   createMinimap() {
-    const minimapSize = 150;
+    // Minimap frame image: 620x508, scale to fit
+    const frameScale = 0.4;
+    const frameWidth = 620 * frameScale;
+    const frameHeight = 508 * frameScale;
+
     // Position at bottom-left
-    const minimapX = 20;
-    const minimapY = this.screenHeight - minimapSize - 50;
+    const frameX = 15;
+    const frameY = this.screenHeight - frameHeight - 10;
 
-    // Background with styled border matching menu style
-    this.minimapBg = this.add.rectangle(minimapX - 10, minimapY - 30, minimapSize + 20, minimapSize + 40, 0x1a1a1a, 0.9);
-    this.minimapBg.setOrigin(0, 0);
+    // The parchment content area inside the frame - use more space
+    const contentPadding = { left: 22, top: 32, right: 22, bottom: 18 };
+    const minimapWidth = frameWidth - contentPadding.left - contentPadding.right;
+    const minimapHeight = frameHeight - contentPadding.top - contentPadding.bottom;
+    const minimapSize = Math.min(minimapWidth, minimapHeight);
+    const minimapX = frameX + contentPadding.left + (minimapWidth - minimapSize) / 2;
+    const minimapY = frameY + contentPadding.top + (minimapHeight - minimapSize) / 2;
+
+    // Frame image (already has "Minimap" header)
+    this.minimapBg = this.add.image(frameX + frameWidth / 2, frameY + frameHeight / 2, 'ui-minimap');
+    this.minimapBg.setDisplaySize(frameWidth, frameHeight);
     this.minimapBg.setDepth(1000);
-    this.minimapBg.setStrokeStyle(2, 0x4CAF50);
 
-    // Label
-    this.minimapLabel = this.add.text(minimapX, minimapY - 20, 'Minimap', {
-      fontSize: '14px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setDepth(1001);
-
-    // Border - make it interactive for click-to-move
+    // Invisible interactive rectangle for minimap clicks
     this.minimapBorder = this.add.rectangle(minimapX, minimapY, minimapSize, minimapSize);
     this.minimapBorder.setOrigin(0, 0);
-    this.minimapBorder.setStrokeStyle(2, 0x4CAF50);
-    this.minimapBorder.setFillStyle(0x1a3a1a, 0.5);
+    this.minimapBorder.setFillStyle(0x000000, 0); // Transparent
     this.minimapBorder.setDepth(1001);
     this.minimapBorder.setInteractive({ useHandCursor: true });
 
@@ -544,6 +593,7 @@ export default class UIScene extends Phaser.Scene {
     this.minimapX = minimapX;
     this.minimapY = minimapY;
     this.minimapSize = minimapSize;
+    this.minimapFrameY = frameY;
 
     // Handle minimap clicks to move camera
     this.minimapBorder.on('pointerdown', (pointer) => {
@@ -863,127 +913,213 @@ export default class UIScene extends Phaser.Scene {
    * Dynamic panel that adjusts to show upgrades for any building
    */
   createBuildingPanel() {
-    // Store panel dimensions for dynamic updates
-    this.panelWidth = 280;
-    this.panelBaseHeight = 120; // Base height without buttons
+    // Scroll image: 428x480, scale to fit
+    const scrollScale = 0.6;
+    this.panelWidth = 428 * scrollScale;
+    this.panelBaseHeight = 480 * scrollScale;
     this.panelX = (this.screenWidth - 220 - this.panelWidth) / 2;
-    this.panelY = this.screenHeight - 400; // Will be adjusted based on content
+    this.panelY = this.screenHeight - this.panelBaseHeight - 50;
+
+    // Content padding inside the scroll
+    this.panelContentPadding = { left: 30, top: 30, right: 30, bottom: 40 };
 
     // Container for all building panel elements
     this.buildingPanelContainer = this.add.container(0, 0);
     this.buildingPanelContainer.setDepth(2000);
     this.buildingPanelContainer.setVisible(false);
 
-    // Background (will be resized dynamically)
-    this.panelBg = this.add.rectangle(this.panelX, this.panelY, this.panelWidth, this.panelBaseHeight, 0x2a2a2a, 0.95);
-    this.panelBg.setOrigin(0, 0);
+    // Scroll background image
+    this.panelBg = this.add.image(
+      this.panelX + this.panelWidth / 2,
+      this.panelY + this.panelBaseHeight / 2,
+      'ui-scroll'
+    );
+    this.panelBg.setDisplaySize(this.panelWidth, this.panelBaseHeight);
     this.buildingPanelContainer.add(this.panelBg);
 
-    // Border (will be resized dynamically)
-    this.panelBorder = this.add.rectangle(this.panelX, this.panelY, this.panelWidth, this.panelBaseHeight);
-    this.panelBorder.setOrigin(0, 0);
-    this.panelBorder.setStrokeStyle(3, 0x4CAF50);
-    this.buildingPanelContainer.add(this.panelBorder);
-
     // Title
-    this.buildingNameText = this.add.text(this.panelX + 10, this.panelY + 10, 'Building', {
-      fontSize: '20px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    });
+    this.buildingNameText = this.add.text(
+      this.panelX + this.panelWidth / 2,
+      this.panelY + this.panelContentPadding.top,
+      'Building',
+      {
+        fontSize: '18px',
+        fill: '#3d2817',
+        fontFamily: 'Arial',
+        fontStyle: 'bold'
+      }
+    );
+    this.buildingNameText.setOrigin(0.5, 0);
     this.buildingPanelContainer.add(this.buildingNameText);
 
     // Status text
-    this.buildingStatusText = this.add.text(this.panelX + 10, this.panelY + 40, 'Status: Operational', {
-      fontSize: '14px',
-      fill: '#4CAF50',
-      fontFamily: 'Arial'
-    });
+    this.buildingStatusText = this.add.text(
+      this.panelX + this.panelContentPadding.left,
+      this.panelY + this.panelContentPadding.top + 30,
+      'Status: Operational',
+      {
+        fontSize: '12px',
+        fill: '#2e7d32',
+        fontFamily: 'Arial'
+      }
+    );
     this.buildingPanelContainer.add(this.buildingStatusText);
 
     // Info text (for building-specific info like production rates)
-    this.buildingInfoText = this.add.text(this.panelX + 10, this.panelY + 60, '', {
-      fontSize: '12px',
-      fill: '#FFD700',
-      fontFamily: 'Arial',
-      wordWrap: { width: this.panelWidth - 20 }
-    });
+    this.buildingInfoText = this.add.text(
+      this.panelX + this.panelContentPadding.left,
+      this.panelY + this.panelContentPadding.top + 50,
+      '',
+      {
+        fontSize: '11px',
+        fill: '#8b6914',
+        fontFamily: 'Arial',
+        wordWrap: { width: this.panelWidth - this.panelContentPadding.left - this.panelContentPadding.right }
+      }
+    );
     this.buildingPanelContainer.add(this.buildingInfoText);
 
     // Section label (Production/Upgrades/Research)
-    this.sectionLabel = this.add.text(this.panelX + 10, this.panelY + 85, '', {
-      fontSize: '16px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    });
+    this.sectionLabel = this.add.text(
+      this.panelX + this.panelContentPadding.left,
+      this.panelY + this.panelContentPadding.top + 75,
+      '',
+      {
+        fontSize: '14px',
+        fill: '#3d2817',
+        fontFamily: 'Arial',
+        fontStyle: 'bold'
+      }
+    );
     this.buildingPanelContainer.add(this.sectionLabel);
 
     // Close button
-    this.closeBtn = this.add.text(this.panelX + this.panelWidth - 30, this.panelY + 5, '✕', {
-      fontSize: '24px',
-      fill: '#ffffff',
-      fontFamily: 'Arial'
-    });
+    this.closeBtn = this.add.text(
+      this.panelX + this.panelWidth - this.panelContentPadding.right,
+      this.panelY + this.panelContentPadding.top - 5,
+      '✕',
+      {
+        fontSize: '20px',
+        fill: '#5a4030',
+        fontFamily: 'Arial'
+      }
+    );
+    this.closeBtn.setOrigin(1, 0);
     this.closeBtn.setInteractive({ useHandCursor: true });
     this.closeBtn.on('pointerdown', () => this.hideBuildingPanel());
-    this.closeBtn.on('pointerover', () => this.closeBtn.setColor('#ff0000'));
-    this.closeBtn.on('pointerout', () => this.closeBtn.setColor('#ffffff'));
+    this.closeBtn.on('pointerover', () => this.closeBtn.setColor('#8b0000'));
+    this.closeBtn.on('pointerout', () => this.closeBtn.setColor('#5a4030'));
     this.buildingPanelContainer.add(this.closeBtn);
+
+    // Progress bar elements
+    const progressY = this.panelY + this.panelContentPadding.top + 50;
+    this.progressBarBg = this.add.rectangle(
+      this.panelX + this.panelContentPadding.left,
+      progressY,
+      this.panelWidth - this.panelContentPadding.left - this.panelContentPadding.right,
+      18,
+      0x8b7355
+    );
+    this.progressBarBg.setOrigin(0, 0);
+    this.progressBarBg.setVisible(false);
+    this.buildingPanelContainer.add(this.progressBarBg);
+
+    this.progressBarFill = this.add.rectangle(
+      this.panelX + this.panelContentPadding.left + 2,
+      progressY + 2,
+      0,
+      14,
+      0x4caf50
+    );
+    this.progressBarFill.setOrigin(0, 0);
+    this.progressBarFill.setVisible(false);
+    this.buildingPanelContainer.add(this.progressBarFill);
+
+    this.progressBarBorder = this.add.rectangle(
+      this.panelX + this.panelContentPadding.left,
+      progressY,
+      this.panelWidth - this.panelContentPadding.left - this.panelContentPadding.right,
+      18
+    );
+    this.progressBarBorder.setOrigin(0, 0);
+    this.progressBarBorder.setStrokeStyle(2, 0x5a4030);
+    this.progressBarBorder.setFillStyle(0x000000, 0);
+    this.progressBarBorder.setVisible(false);
+    this.buildingPanelContainer.add(this.progressBarBorder);
+
+    this.progressBarText = this.add.text(
+      this.panelX + this.panelWidth / 2,
+      progressY + 9,
+      '',
+      {
+        fontSize: '10px',
+        fill: '#ffffff',
+        fontFamily: 'Arial',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 2
+      }
+    );
+    this.progressBarText.setOrigin(0.5);
+    this.progressBarText.setVisible(false);
+    this.buildingPanelContainer.add(this.progressBarText);
 
     // Dynamic buttons array (will be populated when showing panel)
     this.dynamicButtons = [];
+
+    // Panel refresh timer
+    this.panelRefreshTimer = 0;
   }
 
   /**
-   * Create a dynamic button for the building panel
+   * Create a dynamic button for the building panel (simple text, no background)
    */
   createDynamicButton(x, y, label, costText, icon, onClick, disabled = false) {
-    const btnWidth = 260;
-    const btnHeight = 42;
+    const btnWidth = 180;
+    const btnHeight = 38;
+    const leftPadding = 25; // More padding from left edge
 
-    // Create styled button
-    const bg = createStyledButton(
-      this,
-      x + btnWidth / 2,
-      y + btnHeight / 2,
-      '',
-      disabled ? null : onClick,
-      {
-        width: btnWidth,
-        height: btnHeight,
-        cornerRadius: 8,
-        fontSize: '14px',
-        disabled: disabled
-      }
-    );
+    // Readable font with slight style - disabled uses dark muted brown for readability on parchment
+    const normalColor = disabled ? '#4a4035' : '#3d2817';
+    const hoverColor = '#8b5a2b';
+    const costColor = disabled ? '#5a5045' : '#5a4a3a';
 
-    // Remove default button text
-    if (bg.buttonText) {
-      bg.buttonText.destroy();
-    }
+    // Create invisible hit area for interaction
+    const bg = this.add.rectangle(x + leftPadding + btnWidth / 2, y + btnHeight / 2, btnWidth, btnHeight, 0x000000, 0);
+    bg.setInteractive({ useHandCursor: !disabled });
 
-    const iconText = this.add.text(x + 5, y + btnHeight / 2 - 10, icon, {
-      fontSize: '18px'
+    const iconText = this.add.text(x + leftPadding, y + 10, icon, {
+      fontSize: '15px'
     });
 
-    const labelText = this.add.text(x + 30, y + 6, label, {
+    const labelText = this.add.text(x + leftPadding + 22, y + 5, label, {
       fontSize: '13px',
-      fill: disabled ? '#888888' : '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 2
+      fill: normalColor,
+      fontFamily: 'Georgia, serif'
     });
 
-    const cost = this.add.text(x + 30, y + 24, costText, {
+    const cost = this.add.text(x + leftPadding + 22, y + 21, costText, {
       fontSize: '10px',
-      fill: disabled ? '#666666' : '#cccccc',
-      fontFamily: 'Arial',
-      stroke: '#000000',
-      strokeThickness: 2
+      fill: costColor,
+      fontFamily: 'Georgia, serif'
     });
+
+    // Hover and click interactions
+    if (!disabled) {
+      bg.on('pointerdown', onClick);
+
+      bg.on('pointerover', () => {
+        labelText.setColor(hoverColor);
+        cost.setColor(hoverColor);
+        iconText.setScale(1.1);
+      });
+
+      bg.on('pointerout', () => {
+        labelText.setColor(normalColor);
+        cost.setColor(costColor);
+        iconText.setScale(1);
+      });
+    }
 
     // Add all elements to container
     this.buildingPanelContainer.add(bg);
@@ -1010,29 +1146,132 @@ export default class UIScene extends Phaser.Scene {
   /**
    * Resize the panel to fit content
    */
-  resizePanel(numButtons, hasInfo = false) {
-    const buttonHeight = 48;
-    const infoHeight = hasInfo ? 25 : 0;
-    const headerHeight = 110;
-    const totalHeight = headerHeight + infoHeight + (numButtons * buttonHeight) + 20;
+  resizePanel(numButtons, hasInfo = false, hasProgressBar = false) {
+    // With scroll background, we use fixed panel size and position content within
+    const padding = this.panelContentPadding;
+    const progressBarHeight = hasProgressBar ? 25 : 0;
+    const infoHeight = hasInfo ? 20 : 0;
 
-    // Update panel position to stay on screen
-    this.panelY = this.screenHeight - totalHeight - 50;
+    // Panel position is fixed based on scroll size
+    this.panelY = this.screenHeight - this.panelBaseHeight - 50;
+    this.panelX = (this.screenWidth - 220 - this.panelWidth) / 2;
 
-    // Update background and border
-    this.panelBg.setPosition(this.panelX, this.panelY);
-    this.panelBg.setSize(this.panelWidth, totalHeight);
-    this.panelBorder.setPosition(this.panelX, this.panelY);
-    this.panelBorder.setSize(this.panelWidth, totalHeight);
+    // Update scroll background position
+    this.panelBg.setPosition(
+      this.panelX + this.panelWidth / 2,
+      this.panelY + this.panelBaseHeight / 2
+    );
 
-    // Update text positions
-    this.buildingNameText.setPosition(this.panelX + 10, this.panelY + 10);
-    this.buildingStatusText.setPosition(this.panelX + 10, this.panelY + 40);
-    this.buildingInfoText.setPosition(this.panelX + 10, this.panelY + 60);
-    this.sectionLabel.setPosition(this.panelX + 10, this.panelY + 60 + infoHeight + 15);
-    this.closeBtn.setPosition(this.panelX + this.panelWidth - 30, this.panelY + 5);
+    // Update text positions within the scroll
+    this.buildingNameText.setPosition(this.panelX + this.panelWidth / 2, this.panelY + padding.top);
+    this.buildingStatusText.setPosition(this.panelX + padding.left, this.panelY + padding.top + 28);
 
-    return this.panelY + 60 + infoHeight + 40; // Return Y position for first button
+    // Progress bar position (below status text)
+    const progressY = this.panelY + padding.top + 48;
+    this.progressBarBg.setPosition(this.panelX + padding.left, progressY);
+    this.progressBarFill.setPosition(this.panelX + padding.left + 2, progressY + 2);
+    this.progressBarBorder.setPosition(this.panelX + padding.left, progressY);
+    this.progressBarText.setPosition(this.panelX + this.panelWidth / 2, progressY + 9);
+
+    // Info text position (below progress bar if present)
+    const infoY = this.panelY + padding.top + 48 + progressBarHeight;
+    this.buildingInfoText.setPosition(this.panelX + padding.left, infoY);
+
+    // Section label position
+    this.sectionLabel.setPosition(this.panelX + padding.left, infoY + infoHeight + 10);
+    this.closeBtn.setPosition(this.panelX + this.panelWidth - padding.right, this.panelY + padding.top - 5);
+
+    // Store progress bar visibility state
+    this.hasProgressBar = hasProgressBar;
+
+    return infoY + infoHeight + 35; // Return Y position for first button
+  }
+
+  /**
+   * Update the progress bar based on building state
+   */
+  updateProgressBar() {
+    if (!this.selectedBuilding) {
+      this.hideProgressBar();
+      return;
+    }
+
+    const building = this.selectedBuilding;
+    let progress = 0;
+    let progressText = '';
+    let showBar = false;
+    let barColor = 0x4CAF50; // Green default
+
+    // Check for different types of progress
+    if (building.state === 'CONSTRUCTION') {
+      // Building under construction
+      progress = building.constructionProgress / 100;
+      progressText = `Building... ${Math.floor(building.constructionProgress)}%`;
+      showBar = true;
+      barColor = 0xFFD700; // Gold for construction
+    } else if (building.productionQueue) {
+      // Unit production queue
+      const queueStatus = building.productionQueue.getQueueStatus();
+      if (queueStatus.isProducing) {
+        progress = queueStatus.progress / 100;
+        const timeLeft = (queueStatus.timeRemaining / 1000).toFixed(1);
+        progressText = `Training ${queueStatus.currentUnit}... ${Math.floor(queueStatus.progress)}% (${timeLeft}s)`;
+        showBar = true;
+        barColor = 0x4CAF50; // Green for production
+      }
+    } else if (building.buildingType === 'FACTORY' && building.isProducing) {
+      // Factory tool production
+      const status = building.getProductionStatus?.();
+      if (status?.isProducing) {
+        progress = status.progress / 100;
+        const timeLeft = (status.timeRemaining / 1000).toFixed(1);
+        progressText = `Making tool... ${Math.floor(status.progress)}% (${timeLeft}s)`;
+        showBar = true;
+        barColor = 0x9E9E9E; // Gray for tools
+      }
+    } else if (building.buildingType === 'RESEARCH_CENTER') {
+      // Research progress
+      const status = building.getResearchStatus?.();
+      if (status?.isResearching) {
+        progress = status.progress / 100;
+        const timeLeft = (status.timeRemaining / 1000).toFixed(1);
+        progressText = `Researching ${status.upgradeName}... ${Math.floor(status.progress)}% (${timeLeft}s)`;
+        showBar = true;
+        barColor = 0x2196F3; // Blue for research
+      }
+    }
+
+    if (showBar) {
+      this.showProgressBar(progress, progressText, barColor);
+    } else {
+      this.hideProgressBar();
+    }
+  }
+
+  /**
+   * Show and update the progress bar
+   */
+  showProgressBar(progress, text, color = 0x4CAF50) {
+    const maxWidth = this.panelWidth - 24;
+    const fillWidth = Math.max(0, Math.min(maxWidth, maxWidth * progress));
+
+    this.progressBarBg.setVisible(true);
+    this.progressBarFill.setVisible(true);
+    this.progressBarFill.width = fillWidth;
+    this.progressBarFill.setFillStyle(color);
+    this.progressBarBorder.setVisible(true);
+    this.progressBarText.setVisible(true);
+    this.progressBarText.setText(text);
+  }
+
+  /**
+   * Hide the progress bar
+   */
+  hideProgressBar() {
+    this.progressBarBg.setVisible(false);
+    this.progressBarFill.setVisible(false);
+    this.progressBarBorder.setVisible(false);
+    this.progressBarText.setVisible(false);
   }
 
   /**
@@ -1128,20 +1367,28 @@ export default class UIScene extends Phaser.Scene {
     this.sectionLabel.setText('Production & Upgrades:');
     let buttonY = this.resizePanel(numButtons, infoText !== '');
 
+    // Get resource manager for affordability check
+    const gameScene = this.scene.get('GameScene');
+    const resourceManager = gameScene?.resourceManager;
+
     // Train Worker button
+    const canAffordWorker = resourceManager ? resourceManager.canAfford(UNIT_COSTS.WORKER) : true;
     this.dynamicButtons.push(this.createDynamicButton(
       this.panelX + 10, buttonY,
       'Train Worker', '50🌾',
-      '👷', () => this.trainUnit('worker')
+      '👷', () => this.trainUnit('worker'),
+      !canAffordWorker
     ));
     buttonY += 48;
 
     // Upgrade buttons
     for (const [key, upgrade] of availableUpgrades) {
+      const canAffordUpgrade = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
       this.dynamicButtons.push(this.createDynamicButton(
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
-        '⬆️', () => this.purchaseUpgrade(key)
+        '⬆️', () => this.purchaseUpgrade(key),
+        !canAffordUpgrade
       ));
       buttonY += 48;
     }
@@ -1168,38 +1415,50 @@ export default class UIScene extends Phaser.Scene {
     this.sectionLabel.setText('Train Units & Upgrades:');
     let buttonY = this.resizePanel(numButtons, infoText !== '');
 
+    // Get resource manager for affordability check
+    const gameScene = this.scene.get('GameScene');
+    const resourceManager = gameScene?.resourceManager;
+
     // Unit production buttons
     if (canProduce.includes('guard')) {
+      const canAfford = resourceManager ? resourceManager.canAfford(UNIT_COSTS.GUARD) : true;
       this.dynamicButtons.push(this.createDynamicButton(
         this.panelX + 10, buttonY,
         'Train Guard', '75🌾 25💧 50🪵 2🔧',
-        '🛡️', () => this.trainUnit('guard')
+        '🛡️', () => this.trainUnit('guard'),
+        !canAfford
       ));
       buttonY += 48;
     }
     if (canProduce.includes('scout')) {
+      const canAfford = resourceManager ? resourceManager.canAfford(UNIT_COSTS.SCOUT) : true;
       this.dynamicButtons.push(this.createDynamicButton(
         this.panelX + 10, buttonY,
         'Train Scout', '40🌾 30💧 20🪵 1🔧',
-        '🏹', () => this.trainUnit('scout')
+        '🏹', () => this.trainUnit('scout'),
+        !canAfford
       ));
       buttonY += 48;
     }
     if (canProduce.includes('spy')) {
+      const canAfford = resourceManager ? resourceManager.canAfford(UNIT_COSTS.SPY) : true;
       this.dynamicButtons.push(this.createDynamicButton(
         this.panelX + 10, buttonY,
         'Train Spy', '60🌾 40💧 30🪵 3🔧',
-        '🕵️', () => this.trainUnit('spy')
+        '🕵️', () => this.trainUnit('spy'),
+        !canAfford
       ));
       buttonY += 48;
     }
 
     // Upgrade buttons
     for (const [key, upgrade] of availableUpgrades) {
+      const canAffordUpgrade = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
       this.dynamicButtons.push(this.createDynamicButton(
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
-        '⬆️', () => this.purchaseUpgrade(key)
+        '⬆️', () => this.purchaseUpgrade(key),
+        !canAffordUpgrade
       ));
       buttonY += 48;
     }
@@ -1228,31 +1487,42 @@ export default class UIScene extends Phaser.Scene {
     this.sectionLabel.setText('Tool Production & Upgrades:');
     let buttonY = this.resizePanel(numButtons, infoText !== '');
 
+    // Get resource manager for affordability check
+    const gameScene = this.scene.get('GameScene');
+    const resourceManager = gameScene?.resourceManager;
+
     // Make Tool button
-    const cost = building.sticksPerTool || 5;
+    const sticksPerTool = building.sticksPerTool || 5;
+    const canAffordTool = resourceManager ? resourceManager.canAfford({ sticks: sticksPerTool }) : true;
     this.dynamicButtons.push(this.createDynamicButton(
       this.panelX + 10, buttonY,
-      'Make Tool', `${cost}🪵 → 1🔧`,
-      '🔧', () => this.makeTools()
+      'Make Tool', `${sticksPerTool}🪵 → 1🔧`,
+      '🔧', () => this.makeTools(),
+      !canAffordTool
     ));
     buttonY += 48;
 
     // Batch Production button (if unlocked)
     if (hasBatch) {
+      const batchCost = 20; // 20 sticks for 5 tools
+      const canAffordBatch = resourceManager ? resourceManager.canAfford({ sticks: batchCost }) : true;
       this.dynamicButtons.push(this.createDynamicButton(
         this.panelX + 10, buttonY,
         'Make Batch (5)', '20🪵 → 5🔧',
-        '🔧🔧', () => this.makeBatchTools()
+        '🔧🔧', () => this.makeBatchTools(),
+        !canAffordBatch
       ));
       buttonY += 48;
     }
 
     // Upgrade buttons
     for (const [key, upgrade] of availableUpgrades) {
+      const canAffordUpgrade = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
       this.dynamicButtons.push(this.createDynamicButton(
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
-        '⬆️', () => this.purchaseUpgrade(key)
+        '⬆️', () => this.purchaseUpgrade(key),
+        !canAffordUpgrade
       ));
       buttonY += 48;
     }
@@ -1280,16 +1550,23 @@ export default class UIScene extends Phaser.Scene {
     this.sectionLabel.setText('Research Available:');
     let buttonY = this.resizePanel(Math.min(numButtons, 6), true); // Max 6 visible
 
+    // Get resource manager for affordability check
+    const gameScene = this.scene.get('GameScene');
+    const resourceManager = gameScene?.resourceManager;
+
     // Research buttons (limited to prevent overflow)
     let count = 0;
     for (const [key, upgrade] of availableUpgrades) {
       if (count >= 6) break; // Limit visible buttons
       const isResearching = status.isResearching && status.currentResearch === key;
+      const canAfford = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
+      // Disable if already researching OR can't afford
+      const isDisabled = isResearching || !canAfford;
       this.dynamicButtons.push(this.createDynamicButton(
         this.panelX + 10, buttonY,
         upgrade.name, isResearching ? `${Math.floor(status.progress)}%...` : this.formatUpgradeCost(upgrade.cost),
         '🔬', () => this.startResearch(key),
-        isResearching
+        isDisabled
       ));
       buttonY += 48;
       count++;
@@ -1309,11 +1586,17 @@ export default class UIScene extends Phaser.Scene {
     this.sectionLabel.setText('Upgrades:');
     let buttonY = this.resizePanel(availableUpgrades.length, true);
 
+    // Get resource manager for affordability check
+    const gameScene = this.scene.get('GameScene');
+    const resourceManager = gameScene?.resourceManager;
+
     for (const [key, upgrade] of availableUpgrades) {
+      const canAfford = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
       this.dynamicButtons.push(this.createDynamicButton(
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
-        '⬆️', () => this.purchaseUpgrade(key)
+        '⬆️', () => this.purchaseUpgrade(key),
+        !canAfford
       ));
       buttonY += 48;
     }
@@ -1333,11 +1616,17 @@ export default class UIScene extends Phaser.Scene {
     this.sectionLabel.setText('Upgrades:');
     let buttonY = this.resizePanel(availableUpgrades.length, true);
 
+    // Get resource manager for affordability check
+    const gameScene = this.scene.get('GameScene');
+    const resourceManager = gameScene?.resourceManager;
+
     for (const [key, upgrade] of availableUpgrades) {
+      const canAfford = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
       this.dynamicButtons.push(this.createDynamicButton(
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
-        '⬆️', () => this.purchaseUpgrade(key)
+        '⬆️', () => this.purchaseUpgrade(key),
+        !canAfford
       ));
       buttonY += 48;
     }
@@ -1356,11 +1645,17 @@ export default class UIScene extends Phaser.Scene {
     this.sectionLabel.setText('Upgrades:');
     let buttonY = this.resizePanel(availableUpgrades.length, true);
 
+    // Get resource manager for affordability check
+    const gameScene = this.scene.get('GameScene');
+    const resourceManager = gameScene?.resourceManager;
+
     for (const [key, upgrade] of availableUpgrades) {
+      const canAfford = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
       this.dynamicButtons.push(this.createDynamicButton(
         this.panelX + 10, buttonY,
         upgrade.name, this.formatUpgradeCost(upgrade.cost),
-        '⬆️', () => this.purchaseUpgrade(key)
+        '⬆️', () => this.purchaseUpgrade(key),
+        !canAfford
       ));
       buttonY += 48;
     }
@@ -1478,18 +1773,21 @@ export default class UIScene extends Phaser.Scene {
   /**
    * Update resource display
    */
-  updateResources(food, water, sticks, stone = 0, tools = 0) {
+  updateResources(food, water, sticks, stone = 0, tools = 0, maxFood = 200, maxWater = 150, maxSticks = 300, maxStone = 100, maxTools = 20) {
     this.resources.food = food;
     this.resources.water = water;
     this.resources.sticks = sticks;
     this.resources.stone = stone;
     this.resources.tools = tools;
 
-    this.foodText.setText(`🌾 ${food}`);
-    this.waterText.setText(`💧 ${water}`);
-    this.sticksText.setText(`🪵 ${sticks}`);
-    this.stoneText.setText(`🪨 ${stone}`);
-    this.toolsText.setText(`🔧 ${tools}`);
+    // Store limits for reference
+    this.storageLimits = { food: maxFood, water: maxWater, sticks: maxSticks, stone: maxStone, tools: maxTools };
+
+    this.foodText.setText(`🌾 ${food}/${maxFood}`);
+    this.waterText.setText(`💧 ${water}/${maxWater}`);
+    this.sticksText.setText(`🪵 ${sticks}/${maxSticks}`);
+    this.stoneText.setText(`🪨 ${stone}/${maxStone}`);
+    this.toolsText.setText(`🔧 ${tools}/${maxTools}`);
   }
 
   /**

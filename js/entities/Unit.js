@@ -321,8 +321,15 @@ export default class Unit extends Phaser.GameObjects.Container {
       this.x = newX;
       this.y = newY;
 
-      // Update rotation to face movement direction
-      this.rotation = angle + Math.PI / 2;
+      // Mirror sprite horizontally based on movement direction
+      // If moving left (angle between 90° and 270°), flip sprite
+      // Reset container rotation (no rotation, only flip)
+      this.rotation = 0;
+      if (Math.cos(angle) < 0) {
+        this.sprite.setFlipX(true);
+      } else {
+        this.sprite.setFlipX(false);
+      }
     }
   }
 

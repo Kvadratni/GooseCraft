@@ -74,9 +74,15 @@ export default class CombatUnit extends Unit {
         this.setState(UNIT_STATES.ATTACKING);
       }
 
-      // Face target
+      // Face target - mirror sprite horizontally based on direction
+      // Reset container rotation (no rotation, only flip)
       const angle = Phaser.Math.Angle.Between(this.x, this.y, this.targetEnemy.x, this.targetEnemy.y);
-      this.rotation = angle + Math.PI / 2;
+      this.rotation = 0;
+      if (Math.cos(angle) < 0) {
+        this.sprite.setFlipX(true);
+      } else {
+        this.sprite.setFlipX(false);
+      }
 
       // Attack if cooldown ready
       if (this.canAttack()) {

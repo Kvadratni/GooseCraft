@@ -224,7 +224,10 @@ export default class ResourceManager {
   updateUI() {
     const uiScene = this.scene.scene.get('UIScene');
     if (uiScene && uiScene.updateResources) {
-      uiScene.updateResources(this.resources.food, this.resources.water, this.resources.sticks, this.resources.stone, this.resources.tools);
+      uiScene.updateResources(
+        this.resources.food, this.resources.water, this.resources.sticks, this.resources.stone, this.resources.tools,
+        this.storageLimits.food, this.storageLimits.water, this.storageLimits.sticks, this.storageLimits.stone, this.storageLimits.tools
+      );
     }
   }
 }

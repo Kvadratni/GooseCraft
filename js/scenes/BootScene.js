@@ -71,6 +71,13 @@ export default class BootScene extends Phaser.Scene {
     this.load.audio('sfx-gather-water', 'assets/audio/gather-water.mp3');
     this.load.audio('sfx-worker-acknowledge', 'assets/audio/worker-on_it.mp3');
 
+    // Load UI assets
+    this.load.image('ui-top-bar', 'assets/ui/top_bar.png');
+    this.load.image('ui-build-menu', 'assets/ui/build_menu.png');
+    this.load.image('ui-build-button', 'assets/ui/build_menu_button.png');
+    this.load.image('ui-minimap', 'assets/ui/minimap.png');
+    this.load.image('ui-scroll', 'assets/ui/menu_scroll.png');
+
     console.log('BootScene: Preloading assets...');
   }
 
