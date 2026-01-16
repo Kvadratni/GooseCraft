@@ -20,6 +20,11 @@ export default class Scout extends CombatUnit {
 
     super(scene, x, y, config, faction);
 
+    // Ranged unit - can hit aerial targets
+    this.canHitAerial = true;
+    this.isRanged = true;
+    this.projectileType = 'arrow';
+
     console.log('Scout unit created - Fast ranged harasser');
   }
 }

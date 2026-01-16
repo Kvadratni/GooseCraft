@@ -20,6 +20,10 @@ export default class Guard extends CombatUnit {
 
     super(scene, x, y, config, faction);
 
+    // Melee unit - cannot hit aerial targets
+    this.canHitAerial = false;
+    this.isRanged = false;
+
     console.log('Guard unit created - Tank/Melee fighter');
   }
 }

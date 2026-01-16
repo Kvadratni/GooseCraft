@@ -27,6 +27,11 @@ export default class Watchtower extends Building {
     this.attackTimer = 0;
     this.targetEnemy = null;
 
+    // Ranged tower - can hit aerial targets
+    this.canHitAerial = true;
+    this.isRanged = true;
+    this.projectileType = 'arrow';
+
     // Extended vision range
     this.visionRange = 12; // tiles
     this.baseVisionRange = 12;
@@ -137,33 +142,96 @@ export default class Watchtower extends Building {
   attackTarget(target) {
     if (!target || !target.active) return;
 
-    // Deal damage
-    if (target.takeDamage) {
-      target.takeDamage(this.damage);
-    }
-
-    // Visual feedback - projectile effect
-    this.showAttackEffect(target);
+    // Spawn arrow projectile
+    this.spawnArrowProjectile(target);
   }
 
   /**
-   * Show attack visual effect
+   * Spawn arrow projectile toward target
    */
-  showAttackEffect(target) {
-    // Create a simple projectile line
-    const graphics = this.scene.add.graphics();
-    graphics.lineStyle(2, FACTION_COLORS[this.faction] || 0xFFFF00, 1);
-    graphics.beginPath();
-    graphics.moveTo(this.x, this.y - 40); // From tower top
-    graphics.lineTo(target.x, target.y);
-    graphics.strokePath();
+  spawnArrowProjectile(target) {
+    const startX = this.x;
+    const startY = this.y - 40; // From tower top
+    const endX = target.x;
+    const endY = target.y;
 
-    // Fade out
+    // Create arrow graphics
+    const arrow = this.scene.add.graphics();
+    arrow.setDepth(9000);
+
+    // Calculate angle for arrow rotation
+    const angle = Phaser.Math.Angle.Between(startX, startY, endX, endY);
+
+    // Draw arrow shape
+    const drawArrow = (g, rot) => {
+      g.clear();
+      g.lineStyle(2, 0x8B4513, 1); // Brown shaft
+      g.fillStyle(0x808080, 1); // Gray arrowhead
+
+      g.save();
+      g.translateCanvas(0, 0);
+      g.rotateCanvas(rot);
+
+      // Arrow shaft
+      g.beginPath();
+      g.moveTo(-12, 0);
+      g.lineTo(8, 0);
+      g.strokePath();
+
+      // Arrowhead
+      g.beginPath();
+      g.moveTo(12, 0);
+      g.lineTo(6, -3);
+      g.lineTo(6, 3);
+      g.closePath();
+      g.fillPath();
+
+      // Fletching
+      g.lineStyle(1, 0xFFFFFF, 0.8);
+      g.beginPath();
+      g.moveTo(-10, 0);
+      g.lineTo(-14, -3);
+      g.moveTo(-10, 0);
+      g.lineTo(-14, 3);
+      g.strokePath();
+
+      g.restore();
+    };
+
+    arrow.x = startX;
+    arrow.y = startY;
+    drawArrow(arrow, angle);
+
+    // Animate arrow to target
+    const distance = Phaser.Math.Distance.Between(startX, startY, endX, endY);
+    const duration = Math.min(300, distance * 1.5);
+
     this.scene.tweens.add({
-      targets: graphics,
-      alpha: 0,
-      duration: 200,
-      onComplete: () => graphics.destroy()
+      targets: arrow,
+      x: endX,
+      y: endY,
+      duration: duration,
+      ease: 'Linear',
+      onUpdate: () => {
+        drawArrow(arrow, angle);
+      },
+      onComplete: () => {
+        arrow.destroy();
+        // Deal damage when arrow hits
+        if (target && target.active && target.takeDamage) {
+          target.takeDamage(this.damage);
+          // Flash red on hit
+          if (target.sprite) {
+            const originalTint = target.sprite.tintTopLeft;
+            target.sprite.setTint(0xFF0000);
+            this.scene.time.delayedCall(100, () => {
+              if (target && target.sprite && target.active) {
+                target.sprite.setTint(originalTint);
+              }
+            });
+          }
+        }
+      }
     });
   }
 

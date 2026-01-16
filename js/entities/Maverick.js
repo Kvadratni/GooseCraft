@@ -20,6 +20,12 @@ export default class Maverick extends CombatUnit {
 
     super(scene, x, y, config, faction);
 
+    // Aerial unit - can only be hit by ranged attacks (Scout, Watchtower)
+    this.isAerial = true;
+    this.canHitAerial = true;
+    this.isRanged = true;
+    this.projectileType = 'rock'; // Drops rocks on targets
+
     console.log('Maverick unit created - Fast aerial striker');
   }
 }

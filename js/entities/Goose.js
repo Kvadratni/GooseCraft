@@ -1,10 +1,10 @@
 // Goose - Worker Unit
 
-import Unit from './Unit.js';
+import CombatUnit from './CombatUnit.js';
 import { UNIT, UNIT_STATES, BUILDING_STATES, FACTIONS } from '../utils/Constants.js';
 import { worldToGridInt } from '../utils/IsometricUtils.js';
 
-export default class Goose extends Unit {
+export default class Goose extends CombatUnit {
   constructor(scene, x, y, faction) {
     // Configure worker goose properties (use builder sprite for worker units)
     const config = {
@@ -13,10 +13,19 @@ export default class Goose extends Unit {
       speed: UNIT.SPEED_WORKER,
       visionRange: UNIT.VISION_RANGE,
       spriteKey: 'builder', // Use builder sprite for worker
-      size: 32
+      size: 32,
+      // Combat properties - workers can fight but are weak
+      damage: 1,
+      attackRange: 50,        // Melee range
+      attackSpeed: 2000,      // Slow attack (2 seconds)
+      engagementRange: 80     // Short engagement range
     };
 
     super(scene, x, y, config, faction);
+
+    // Workers are melee - cannot hit aerial
+    this.canHitAerial = false;
+    this.isRanged = false;
 
     // Worker-specific properties
     this.inventory = {
