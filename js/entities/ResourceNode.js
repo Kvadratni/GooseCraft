@@ -8,7 +8,7 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
     super(scene, x, y);
 
     this.scene = scene;
-    this.resourceType = resourceType; // 'food', 'water', 'sticks'
+    this.resourceType = resourceType; // 'food', 'water', 'sticks', 'stone'
 
     // Resource configuration
     const config = RESOURCE[resourceType.toUpperCase()];
@@ -52,24 +52,33 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
 
     switch (this.resourceType) {
       case 'food':
-        // Use wheat spritesheet - frame 0 for consistency
+        // Use wheat spritesheet - 4 frames available (2x2 grid)
+        // Pick a random variant at creation (consistent for this node)
         spriteKey = 'wheat';
-        frame = 0; // Use first frame to avoid frame issues
-        scale = 0.6; // Smaller scale to fit better
+        this.baseFrame = Math.floor(Math.random() * 4); // 0-3
+        frame = this.baseFrame;
+        scale = 0.15; // Scale down the larger 400x300 frames
         break;
       case 'water':
-        // Keep water as simple visual (no spritesheet)
-        const waterCircle = this.scene.add.circle(0, 0, 20, 0x42A5F5, 0.7);
-        waterCircle.setStrokeStyle(2, 0x1976D2, 1);
-        this.add(waterCircle);
+        // Create water puddle that shrinks as it's gathered
+        // Base size scales with capacity
+        this.baseWaterRadius = 25;
+        this.minWaterRadius = 8;
 
-        const waterIcon = this.scene.add.text(0, 0, '💧', {
-          fontSize: '24px'
-        });
-        waterIcon.setOrigin(0.5);
-        this.add(waterIcon);
+        // Create outer puddle (darker edge)
+        const waterOuter = this.scene.add.ellipse(0, 2, this.baseWaterRadius * 2, this.baseWaterRadius * 1.2, 0x1565C0, 0.6);
+        this.add(waterOuter);
+        this.waterOuter = waterOuter;
+
+        // Create main water puddle
+        const waterCircle = this.scene.add.ellipse(0, 0, this.baseWaterRadius * 1.8, this.baseWaterRadius * 1.0, 0x42A5F5, 0.8);
+        this.add(waterCircle);
         this.resourceSprite = waterCircle;
-        this.iconSprite = waterIcon;
+
+        // Create water highlight (reflection)
+        const waterHighlight = this.scene.add.ellipse(-4, -3, this.baseWaterRadius * 0.6, this.baseWaterRadius * 0.3, 0x90CAF9, 0.5);
+        this.add(waterHighlight);
+        this.waterHighlight = waterHighlight;
 
         // Add capacity text
         this.capacityText = this.scene.add.text(0, 30, `${Math.floor(this.currentCapacity)}`, {
@@ -84,11 +93,38 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
         return; // Exit early for water
 
       case 'sticks':
-        // Use tree spritesheet - frame 0 shows a full tree
+        // Use tree spritesheet - frames 0-3 are full trees, 4 is dead tree, 13 is log stump
+        // Pick a random tree variant at creation (consistent for this node)
         spriteKey = 'trees';
-        frame = 0; // First tree variant
-        scale = 1.0; // Increased from 0.7 for better visibility
+        this.baseFrame = Math.floor(Math.random() * 4); // 0-3 (full trees only)
+        frame = this.baseFrame;
+        scale = 1.0;
         break;
+      case 'stone':
+        // Stone deposits - simple visual representation
+        const stoneCircle = this.scene.add.circle(0, 0, 22, 0x9E9E9E, 0.8);
+        stoneCircle.setStrokeStyle(3, 0x616161, 1);
+        this.add(stoneCircle);
+
+        const stoneIcon = this.scene.add.text(0, 0, '🪨', {
+          fontSize: '28px'
+        });
+        stoneIcon.setOrigin(0.5);
+        this.add(stoneIcon);
+        this.resourceSprite = stoneCircle;
+        this.iconSprite = stoneIcon;
+
+        // Add capacity text
+        this.capacityText = this.scene.add.text(0, 32, `${Math.floor(this.currentCapacity)}`, {
+          fontSize: '12px',
+          fill: '#ffffff',
+          fontFamily: 'Arial',
+          stroke: '#000000',
+          strokeThickness: 2
+        });
+        this.capacityText.setOrigin(0.5);
+        this.add(this.capacityText);
+        return; // Exit early for stone
       default:
         console.warn(`Unknown resource type: ${this.resourceType}`);
         return;
@@ -124,6 +160,10 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
       // For wheat, use fixed display size
       this.resourceSprite.setDisplaySize(48, 60); // Width x Height
       this.resourceSprite.setOrigin(0.5, 0.7); // Slightly adjusted origin
+    } else if (this.resourceType === 'sticks') {
+      // For trees, use fixed display size (tree frames are 64x112, scale down)
+      this.resourceSprite.setDisplaySize(48, 72); // Width x Height - more compact
+      this.resourceSprite.setOrigin(0.5, 0.85); // Bottom-center origin
     } else {
       this.resourceSprite.setScale(scale);
       this.resourceSprite.setOrigin(0.5, 0.8); // Bottom-center origin
@@ -198,39 +238,41 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
     // Change appearance based on capacity
     const percentRemaining = this.currentCapacity / this.maxCapacity;
 
-    // Update sprite frame based on resource type and capacity
+    // Update sprite appearance based on resource type and capacity
+    // Use consistent baseFrame - only change alpha to show depletion
     if (this.resourceSprite && this.resourceType === 'food') {
-      // Wheat: Show different growth stages based on capacity
-      // Frames 0-59 available, use mature frames 20-30 for full, 10-20 for medium, 0-10 for low
-      let frame;
+      // Wheat: Keep same frame, just fade when depleting
+      // baseFrame was set at creation (0-3)
+      this.resourceSprite.setFrame(this.baseFrame || 0);
       if (this.isDepleted) {
-        frame = 0; // Empty/harvested
-      } else if (percentRemaining < 0.25) {
-        frame = 5; // Early growth
+        this.resourceSprite.setAlpha(0.3);
       } else if (percentRemaining < 0.5) {
-        frame = 15; // Mid growth
-      } else if (percentRemaining < 0.75) {
-        frame = 25; // Nearly mature
+        this.resourceSprite.setAlpha(0.7);
       } else {
-        frame = 30; // Fully mature
+        this.resourceSprite.setAlpha(1.0);
       }
-      this.resourceSprite.setFrame(frame);
-      this.resourceSprite.setAlpha(this.isDepleted ? 0.4 : 1.0);
     } else if (this.resourceSprite && this.resourceType === 'sticks') {
-      // Trees: Show different tree types or states
-      // Frames 0-13 available (7 cols x 2 rows)
-      let frame;
+      // Trees: Show progression from full tree -> dead tree -> log stump
+      // Frame 0-3 = full trees, Frame 4 = dead tree (branches), Frame 13 = log stump
       if (this.isDepleted) {
-        frame = 13; // Use last frame as stump/depleted
-      } else if (percentRemaining < 0.33) {
-        frame = Math.floor(Math.random() * 2) + 5; // Damaged trees
-      } else if (percentRemaining < 0.66) {
-        frame = Math.floor(Math.random() * 2) + 2; // Medium trees
+        // Fully depleted: show log stump
+        this.resourceSprite.setFrame(13);
+        this.resourceSprite.setDisplaySize(32, 24); // Smaller stump size
+        this.resourceSprite.setOrigin(0.5, 0.5);
+        this.resourceSprite.setAlpha(0.9);
+      } else if (percentRemaining < 0.5) {
+        // Half depleted: show dead tree with bare branches
+        this.resourceSprite.setFrame(4);
+        this.resourceSprite.setDisplaySize(48, 72);
+        this.resourceSprite.setOrigin(0.5, 0.85);
+        this.resourceSprite.setAlpha(1.0);
       } else {
-        frame = Math.floor(Math.random() * 2); // Full trees
+        // Healthy: show full tree
+        this.resourceSprite.setFrame(this.baseFrame || 0);
+        this.resourceSprite.setDisplaySize(48, 72);
+        this.resourceSprite.setOrigin(0.5, 0.85);
+        this.resourceSprite.setAlpha(1.0);
       }
-      this.resourceSprite.setFrame(frame);
-      this.resourceSprite.setAlpha(this.isDepleted ? 0.5 : 1.0);
     }
 
     // Update text color based on capacity
@@ -247,9 +289,44 @@ export default class ResourceNode extends Phaser.GameObjects.Container {
       }
     }
 
-    // For water resources (icon-based)
-    if (this.iconSprite) {
-      this.iconSprite.setAlpha(this.isDepleted ? 0.3 : (percentRemaining < 0.5 ? 0.7 : 1.0));
+    // For water resources - shrink puddle as it depletes
+    if (this.resourceType === 'water' && this.baseWaterRadius) {
+      // Calculate new size based on remaining capacity
+      const sizeScale = this.minWaterRadius / this.baseWaterRadius +
+        (1 - this.minWaterRadius / this.baseWaterRadius) * percentRemaining;
+
+      // Update main puddle size
+      if (this.resourceSprite) {
+        this.resourceSprite.setDisplaySize(
+          this.baseWaterRadius * 1.8 * sizeScale,
+          this.baseWaterRadius * 1.0 * sizeScale
+        );
+        this.resourceSprite.setAlpha(this.isDepleted ? 0.2 : 0.8);
+      }
+
+      // Update outer puddle
+      if (this.waterOuter) {
+        this.waterOuter.setDisplaySize(
+          this.baseWaterRadius * 2 * sizeScale,
+          this.baseWaterRadius * 1.2 * sizeScale
+        );
+        this.waterOuter.setAlpha(this.isDepleted ? 0.1 : 0.6);
+      }
+
+      // Update highlight
+      if (this.waterHighlight) {
+        this.waterHighlight.setDisplaySize(
+          this.baseWaterRadius * 0.6 * sizeScale,
+          this.baseWaterRadius * 0.3 * sizeScale
+        );
+        this.waterHighlight.setPosition(-4 * sizeScale, -3 * sizeScale);
+        this.waterHighlight.setAlpha(this.isDepleted ? 0 : 0.5);
+      }
+
+      // Move capacity text closer as puddle shrinks
+      if (this.capacityText) {
+        this.capacityText.setPosition(0, 20 + 10 * sizeScale);
+      }
     }
   }
 

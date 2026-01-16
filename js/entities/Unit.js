@@ -24,14 +24,17 @@ export default class Unit extends Phaser.GameObjects.Container {
     this.currentPathIndex = 0;
     this.targetNode = null;
 
+    // Store the original movement destination (world coordinates)
+    this.finalDestination = null;
+
     // Stuck detection
     this.lastPosition = { x: x, y: y };
     this.stuckTimer = 0;
-    this.stuckThreshold = 1000; // 1 second without moving = stuck (reduced from 2)
+    this.stuckThreshold = 1500; // 1.5 second without moving = stuck
 
     // Movement timeout (prevents infinite MOVING state)
     this.movementTimer = 0;
-    this.movementTimeout = 15000; // 15 seconds max for any movement (reduced from 30)
+    this.movementTimeout = 20000; // 20 seconds max for any movement
 
     // Stuck recovery tracking
     this.stuckRecoveryAttempts = 0;
@@ -221,8 +224,8 @@ export default class Unit extends Phaser.GameObjects.Container {
 
     // Stuck detection
     const movedDistance = Phaser.Math.Distance.Between(this.x, this.y, this.lastPosition.x, this.lastPosition.y);
-    if (movedDistance < 1) {
-      // Not moving
+    if (movedDistance < 2) {
+      // Not moving (or moving very slowly)
       this.stuckTimer += delta;
 
       if (this.stuckTimer >= this.stuckThreshold) {
@@ -237,22 +240,29 @@ export default class Unit extends Phaser.GameObjects.Container {
           return;
         }
 
-        // Store the target destination
-        const targetWaypoint = this.currentPath[this.currentPath.length - 1];
+        // Use the original final destination if available, otherwise use the last path waypoint
+        if (this.finalDestination) {
+          console.log(`Unit: Recalculating path to original destination (${Math.round(this.finalDestination.x)}, ${Math.round(this.finalDestination.y)})`);
 
-        if (targetWaypoint) {
-          console.log(`Unit: Recalculating path to (${targetWaypoint.x}, ${targetWaypoint.y})`);
-
-          // Clear current path and request new one
+          // Clear current path and request new one to ORIGINAL destination
           this.currentPath = [];
           this.currentPathIndex = 0;
 
-          // Request fresh path from current position
-          const targetWorld = this.scene.isometricMap.getWorldPosCenter(targetWaypoint.x, targetWaypoint.y);
-          this.moveTo(targetWorld.x, targetWorld.y);
+          // Request fresh path from current position to original destination
+          this.moveTo(this.finalDestination.x, this.finalDestination.y);
         } else {
-          console.warn('Unit: No target waypoint, going idle');
-          this.setState(UNIT_STATES.IDLE);
+          // Fallback to last waypoint
+          const targetWaypoint = this.currentPath[this.currentPath.length - 1];
+          if (targetWaypoint) {
+            console.log(`Unit: Recalculating path to waypoint (${targetWaypoint.x}, ${targetWaypoint.y})`);
+            this.currentPath = [];
+            this.currentPathIndex = 0;
+            const targetWorld = this.scene.isometricMap.getWorldPosCenter(targetWaypoint.x, targetWaypoint.y);
+            this.moveTo(targetWorld.x, targetWorld.y);
+          } else {
+            console.warn('Unit: No target destination, going idle');
+            this.setState(UNIT_STATES.IDLE);
+          }
         }
         return;
       }
@@ -269,8 +279,9 @@ export default class Unit extends Phaser.GameObjects.Container {
     // Calculate distance to target
     const distance = Phaser.Math.Distance.Between(this.x, this.y, targetWorld.x, targetWorld.y);
 
-    // Check if reached waypoint (increased threshold for easier waypoint completion)
-    if (distance < 16) {
+    // Check if reached waypoint
+    // Using 20 pixels threshold - works well with isometric tiles (64x32)
+    if (distance < 20) {
       this.currentPathIndex++;
       console.log(`Unit: Reached waypoint ${this.currentPathIndex}/${this.currentPath.length}`);
 
@@ -344,6 +355,7 @@ export default class Unit extends Phaser.GameObjects.Container {
         this.currentPath = [];
         this.currentPathIndex = 0;
         this.targetNode = null;
+        this.finalDestination = null; // Clear destination when going idle
         this.stuckTimer = 0;
         this.movementTimer = 0;
         this.stuckRecoveryAttempts = 0;
@@ -353,6 +365,7 @@ export default class Unit extends Phaser.GameObjects.Container {
         this.movementTimer = 0;
         this.lastPosition = { x: this.x, y: this.y };
         // Don't reset stuckRecoveryAttempts here - it persists across path retries
+        // Don't reset finalDestination - keep it for recovery
       }
     }
   }
@@ -361,11 +374,14 @@ export default class Unit extends Phaser.GameObjects.Container {
    * Move to a target position (world coordinates)
    */
   moveTo(worldX, worldY) {
+    // Store the original destination for stuck recovery
+    this.finalDestination = { x: worldX, y: worldY };
+
     // Convert positions to grid coordinates
     const startGrid = worldToGridInt(this.x, this.y);
     const endGrid = worldToGridInt(worldX, worldY);
 
-    console.log(`Unit moving from (${startGrid.x}, ${startGrid.y}) to (${endGrid.x}, ${endGrid.y})`);
+    console.log(`Unit moving from grid (${startGrid.x}, ${startGrid.y}) to (${endGrid.x}, ${endGrid.y})`);
 
     // Request path from pathfinding manager
     this.scene.pathfindingManager.findPath(

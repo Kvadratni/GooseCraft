@@ -11,9 +11,10 @@ export default class MenuScene extends Phaser.Scene {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
 
-    // Initialize sound manager (don't play music yet due to browser autoplay restrictions)
+    // Initialize sound manager and start menu music
+    // Audio context is already unlocked from SplashScene user interaction
     this.soundManager = new SoundManager(this);
-    this.musicStarted = false;
+    this.soundManager.playMusic('music-menu', true);
 
     // Background image (contains title)
     const bg = this.add.image(width / 2, height / 2, 'menu-background');
@@ -58,17 +59,6 @@ export default class MenuScene extends Phaser.Scene {
     this.createSettingsPanel();
 
     console.log('MenuScene: Ready');
-  }
-
-  /**
-   * Try to start music on first user interaction
-   */
-  tryStartMusic() {
-    if (!this.musicStarted && this.soundManager) {
-      this.soundManager.playMusic('music-menu', true);
-      this.musicStarted = true;
-      console.log('MenuScene: Started menu music');
-    }
   }
 
   createButton(x, y, text, onClick, disabled = false) {
@@ -181,8 +171,6 @@ export default class MenuScene extends Phaser.Scene {
           buttonHeight - fillPadding * 2,
           cornerRadius - 8
         );
-        // Start music on first interaction
-        this.tryStartMusic();
         onClick();
       });
     }

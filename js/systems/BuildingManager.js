@@ -1,13 +1,17 @@
 // Building Manager - Building placement and construction
 
 import { COLORS, BUILDING, FACTIONS } from '../utils/Constants.js';
-import { screenToWorld, worldToGridInt } from '../utils/IsometricUtils.js';
+import { worldToGridInt } from '../utils/IsometricUtils.js';
 import Building from '../entities/Building.js';
 import Coop from '../buildings/Coop.js';
-import ResourceExtractor from '../buildings/ResourceExtractor.js';
-import NestingBox from '../buildings/NestingBox.js';
+import ResourceStorage from '../buildings/ResourceStorage.js';
+import ResearchCenter from '../buildings/ResearchCenter.js';
 import Barracks from '../buildings/Barracks.js';
 import Factory from '../buildings/Factory.js';
+import Mine from '../buildings/Mine.js';
+import Airstrip from '../buildings/Airstrip.js';
+import Watchtower from '../buildings/Watchtower.js';
+import PowerStation from '../buildings/PowerStation.js';
 
 export default class BuildingManager {
   constructor(scene) {
@@ -97,11 +101,12 @@ export default class BuildingManager {
   getSpriteKey(buildingType) {
     const mapping = {
       'COOP': 'command-center',
-      'FEED_STORAGE': 'research',
-      'RESOURCE_EXTRACTOR': 'resource-extractor',
+      'RESOURCE_STORAGE': 'resource-extractor',
       'FACTORY': 'factory',
-      'NESTING_BOX': 'airstrip',
+      'RESEARCH_CENTER': 'research',
       'BARRACKS': 'barracks',
+      'MINE': 'mine',
+      'AIRSTRIP': 'airstrip',
       'WATCHTOWER': 'tower',
       'POWER_STATION': 'power-station'
     };
@@ -116,8 +121,10 @@ export default class BuildingManager {
       return;
     }
 
-    // Convert screen to world coordinates
-    const worldPos = screenToWorld(pointer.x, pointer.y, this.scene.cameras.main);
+    // Explicitly use this scene's camera for world coordinate conversion
+    const camera = this.scene.cameras.main;
+    const worldPoint = camera.getWorldPoint(pointer.x, pointer.y);
+    const worldPos = { x: worldPoint.x, y: worldPoint.y };
 
     // Snap to grid
     const gridPos = worldToGridInt(worldPos.x, worldPos.y);
@@ -181,7 +188,10 @@ export default class BuildingManager {
       return false;
     }
 
-    const worldPos = screenToWorld(pointer.x, pointer.y, this.scene.cameras.main);
+    // Explicitly use this scene's camera for world coordinate conversion
+    const camera = this.scene.cameras.main;
+    const worldPoint = camera.getWorldPoint(pointer.x, pointer.y);
+    const worldPos = { x: worldPoint.x, y: worldPoint.y };
     const gridPos = worldToGridInt(worldPos.x, worldPos.y);
     const snappedWorld = this.scene.isometricMap.getWorldPosCenter(gridPos.x, gridPos.y);
 
@@ -196,10 +206,14 @@ export default class BuildingManager {
     // Create the building using specific class if available
     const buildingClassMap = {
       'COOP': Coop,
-      'NESTING_BOX': NestingBox,
+      'RESOURCE_STORAGE': ResourceStorage,
+      'RESEARCH_CENTER': ResearchCenter,
       'BARRACKS': Barracks,
       'FACTORY': Factory,
-      'RESOURCE_EXTRACTOR': ResourceExtractor
+      'MINE': Mine,
+      'AIRSTRIP': Airstrip,
+      'WATCHTOWER': Watchtower,
+      'POWER_STATION': PowerStation
     };
 
     const BuildingClass = buildingClassMap[this.currentBuildingType];

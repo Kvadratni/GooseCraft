@@ -2,7 +2,6 @@
 
 import { INPUT, FACTIONS } from '../utils/Constants.js';
 import SelectionBox from '../ui/SelectionBox.js';
-import { screenToWorld } from '../utils/IsometricUtils.js';
 
 export default class SelectionManager {
   constructor(scene) {
@@ -136,9 +135,10 @@ export default class SelectionManager {
   finalizeBoxSelection(pointer) {
     const camera = this.scene.cameras.main;
 
-    // Convert screen positions to world positions
-    const startWorld = screenToWorld(this.boxStartX, this.boxStartY, camera);
-    const endWorld = screenToWorld(pointer.x, pointer.y, camera);
+    // Explicitly use this scene's camera for world coordinate conversion
+    const startWorld = camera.getWorldPoint(this.boxStartX, this.boxStartY);
+    const endWorldPoint = camera.getWorldPoint(pointer.x, pointer.y);
+    const endWorld = { x: endWorldPoint.x, y: endWorldPoint.y };
 
     // Create selection rectangle
     const minX = Math.min(startWorld.x, endWorld.x);
@@ -175,7 +175,10 @@ export default class SelectionManager {
    * Handle single click
    */
   handleSingleClick(pointer) {
-    const worldPos = screenToWorld(pointer.x, pointer.y, this.scene.cameras.main);
+    // Explicitly use the scene's camera for world coordinate conversion
+    const camera = this.scene.cameras.main;
+    const worldPoint = camera.getWorldPoint(pointer.x, pointer.y);
+    const worldPos = { x: worldPoint.x, y: worldPoint.y };
     console.log(`SelectionManager: Click at screen (${pointer.x}, ${pointer.y}) -> world (${Math.round(worldPos.x)}, ${Math.round(worldPos.y)})`);
 
     // Check if shift is held

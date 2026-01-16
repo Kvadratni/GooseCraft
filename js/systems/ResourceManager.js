@@ -11,6 +11,7 @@ export default class ResourceManager {
       food: STARTING_RESOURCES.food,
       water: STARTING_RESOURCES.water,
       sticks: STARTING_RESOURCES.sticks,
+      stone: STARTING_RESOURCES.stone,
       tools: STARTING_RESOURCES.tools
     };
 
@@ -19,6 +20,7 @@ export default class ResourceManager {
       food: STORAGE.FOOD,
       water: STORAGE.WATER,
       sticks: STORAGE.STICKS,
+      stone: STORAGE.STONE,
       tools: STORAGE.TOOLS
     };
 
@@ -222,7 +224,7 @@ export default class ResourceManager {
   updateUI() {
     const uiScene = this.scene.scene.get('UIScene');
     if (uiScene && uiScene.updateResources) {
-      uiScene.updateResources(this.resources.food, this.resources.water, this.resources.sticks, this.resources.tools);
+      uiScene.updateResources(this.resources.food, this.resources.water, this.resources.sticks, this.resources.stone, this.resources.tools);
     }
   }
 }

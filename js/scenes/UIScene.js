@@ -24,17 +24,23 @@ export default class UIScene extends Phaser.Scene {
     // Initialize buildButtons array
     this.buildButtons = [];
 
+    // Store screen dimensions (will be updated on resize)
+    this.screenWidth = this.cameras.main.width;
+    this.screenHeight = this.cameras.main.height;
+
     // Create tooltip
     this.createTooltip();
 
     // Create HUD elements
     this.createTopBar();
     this.createBuildMenu();
-    this.createBottomPanel();
     this.createMinimap();
     this.createBuildingPanel();
     this.createDebugToggle();
     this.createSettingsPanel();
+
+    // Listen for resize events
+    this.scale.on('resize', this.handleResize, this);
 
     // Update minimap after a short delay to ensure GameScene is ready
     this.time.delayedCall(500, () => {
@@ -42,6 +48,59 @@ export default class UIScene extends Phaser.Scene {
     });
 
     console.log('UIScene: HUD ready');
+  }
+
+  /**
+   * Handle screen resize
+   */
+  handleResize(gameSize) {
+    this.screenWidth = gameSize.width;
+    this.screenHeight = gameSize.height;
+
+    // Reposition UI elements
+    this.repositionUI();
+  }
+
+  /**
+   * Reposition all UI elements after resize
+   */
+  repositionUI() {
+    // Update top bar background width
+    if (this.topBarBg) {
+      this.topBarBg.width = this.screenWidth;
+    }
+
+    // Update build menu position
+    if (this.buildMenuBg) {
+      const menuX = this.screenWidth - 220;
+      this.buildMenuX = menuX;
+      this.buildMenuBg.x = menuX;
+      // Refresh build menu buttons
+      this.updateBuildMenu();
+    }
+
+    // Update minimap position
+    if (this.minimapBg) {
+      const minimapY = this.screenHeight - this.minimapSize - 50;
+      this.minimapY = minimapY;
+      this.minimapBg.y = minimapY - 30;
+      if (this.minimapLabel) this.minimapLabel.y = minimapY - 20;
+      if (this.minimapBorder) this.minimapBorder.y = minimapY;
+      this.minimapTerrainCached = false; // Force terrain redraw
+    }
+
+    // Update debug button position
+    if (this.debugButton) {
+      this.debugButton.x = this.screenWidth - 240;
+      this.debugButton.y = this.screenHeight - 50;
+      this.debugButtonText.x = this.screenWidth - 190;
+      this.debugButtonText.y = this.screenHeight - 35;
+    }
+
+    // Update settings button position
+    if (this.settingsButton) {
+      this.settingsButton.x = this.screenWidth - 50;
+    }
   }
 
   update(time, delta) {
@@ -55,6 +114,30 @@ export default class UIScene extends Phaser.Scene {
       this.updateMinimap();
       this.minimapUpdateTimer = 0;
     }
+
+    // Update minimap viewport every frame for smooth tracking
+    this.updateMinimapViewportOnly();
+  }
+
+  /**
+   * Update only the minimap viewport (called every frame)
+   */
+  updateMinimapViewportOnly() {
+    if (!this.minimapViewportGraphics) return;
+
+    const gameScene = this.scene.get('GameScene');
+    if (!gameScene || !gameScene.isometricMap) return;
+
+    const map = gameScene.isometricMap;
+    const gridWidth = map.gridWidth;
+    const gridHeight = map.gridHeight;
+
+    // Match the scale calculation from updateMinimap
+    const scale = (this.minimapSize * 0.7) / Math.max(gridWidth, gridHeight);
+    const centerX = this.minimapX + this.minimapSize / 2;
+    const centerY = this.minimapY + this.minimapSize / 2;
+
+    this.updateMinimapViewport(gameScene, scale, gridWidth, gridHeight, centerX, centerY);
   }
 
   /**
@@ -63,10 +146,10 @@ export default class UIScene extends Phaser.Scene {
   createTopBar() {
     const barHeight = 50;
 
-    // Background
-    const bg = this.add.rectangle(0, 0, GAME_CONFIG.WIDTH, barHeight, 0x1a1a1a, 0.9);
-    bg.setOrigin(0, 0);
-    bg.setDepth(1000);
+    // Background - use current screen width
+    this.topBarBg = this.add.rectangle(0, 0, this.screenWidth, barHeight, 0x1a1a1a, 0.9);
+    this.topBarBg.setOrigin(0, 0);
+    this.topBarBg.setDepth(1000);
 
     // Game title
     this.add.text(20, 15, 'GooseCraft', {
@@ -81,7 +164,7 @@ export default class UIScene extends Phaser.Scene {
     // Resource display
     const resourceX = 200;
     const resourceY = 15;
-    const spacing = 130;
+    const spacing = 110; // Reduced to fit 5 resources
 
     // Food
     this.foodText = this.add.text(resourceX, resourceY, `🌾 ${this.resources.food}`, {
@@ -110,8 +193,17 @@ export default class UIScene extends Phaser.Scene {
       strokeThickness: 3
     }).setDepth(1001);
 
+    // Stone
+    this.stoneText = this.add.text(resourceX + spacing * 3, resourceY, `🪨 ${this.resources.stone || 0}`, {
+      fontSize: '16px',
+      fill: '#757575',
+      fontFamily: 'Arial',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setDepth(1001);
+
     // Tools
-    this.toolsText = this.add.text(resourceX + spacing * 3, resourceY, `🔧 ${this.resources.tools}`, {
+    this.toolsText = this.add.text(resourceX + spacing * 4, resourceY, `🔧 ${this.resources.tools}`, {
       fontSize: '16px',
       fill: '#9E9E9E',
       fontFamily: 'Arial',
@@ -125,7 +217,7 @@ export default class UIScene extends Phaser.Scene {
    */
   createBuildMenu() {
     const menuWidth = 220;
-    const menuX = GAME_CONFIG.WIDTH - menuWidth;
+    const menuX = this.screenWidth - menuWidth;
     const menuY = 60;
     const menuHeight = 500;  // Increased for more buildings
 
@@ -184,13 +276,14 @@ export default class UIScene extends Phaser.Scene {
     // Build button icons for each building type
     const buildingIcons = {
       'COOP': '🏠',
-      'FEED_STORAGE': '🏪',
-      'RESOURCE_EXTRACTOR': '⚙️',
+      'RESOURCE_STORAGE': '🏪',
       'FACTORY': '🏭',
-      'NESTING_BOX': '🪺',
+      'RESEARCH_CENTER': '🔬',
       'BARRACKS': '🏰',
       'WATCHTOWER': '🗼',
-      'POWER_STATION': '⚡'
+      'POWER_STATION': '⚡',
+      'MINE': '⛏️',
+      'AIRSTRIP': '✈️'
     };
 
     // Go through all buildings
@@ -326,6 +419,7 @@ export default class UIScene extends Phaser.Scene {
     if (cost.food > 0) parts.push(`${cost.food} 🌾`);
     if (cost.water > 0) parts.push(`${cost.water} 💧`);
     if (cost.sticks > 0) parts.push(`${cost.sticks} 🪵`);
+    if (cost.stone > 0) parts.push(`${cost.stone} 🪨`);
     if (cost.tools > 0) parts.push(`${cost.tools} 🔧`);
 
     if (parts.length === 0) return 'Free';
@@ -383,12 +477,12 @@ export default class UIScene extends Phaser.Scene {
     let tooltipY = y;
 
     // Don't go off right edge
-    if (tooltipX + width > GAME_CONFIG.WIDTH) {
-      tooltipX = GAME_CONFIG.WIDTH - width - 10;
+    if (tooltipX + width > this.screenWidth) {
+      tooltipX = this.screenWidth - width - 10;
     }
 
     // Don't go off bottom edge
-    if (tooltipY + height > GAME_CONFIG.HEIGHT) {
+    if (tooltipY + height > this.screenHeight) {
       tooltipY = y - height - 10;
     }
 
@@ -415,71 +509,52 @@ export default class UIScene extends Phaser.Scene {
   }
 
   /**
-   * Create bottom panel for unit info
-   */
-  createBottomPanel() {
-    const panelHeight = 120;
-    const panelY = GAME_CONFIG.HEIGHT - panelHeight;
-
-    // Background
-    const bg = this.add.rectangle(0, panelY, GAME_CONFIG.WIDTH - 220, panelHeight, 0x1a1a1a, 0.9);
-    bg.setOrigin(0, 0);
-    bg.setDepth(1000);
-
-    // Unit info text
-    this.unitInfoText = this.add.text(20, panelY + 10, 'No units selected', {
-      fontSize: '16px',
-      fill: '#ffffff',
-      fontFamily: 'Arial'
-    }).setDepth(1001);
-
-    // Selection count
-    this.selectionCountText = this.add.text(20, panelY + 40, '', {
-      fontSize: '14px',
-      fill: '#aaaaaa',
-      fontFamily: 'Arial'
-    }).setDepth(1001);
-
-    // Instructions
-    this.add.text(20, panelY + 70, 'Left-click: Select | Drag: Box Select | Shift-click: Add/Remove | Ctrl+1-9: Save Group | 1-9: Recall', {
-      fontSize: '12px',
-      fill: '#666666',
-      fontFamily: 'Arial'
-    }).setDepth(1001);
-  }
-
-  /**
    * Create minimap
    */
   createMinimap() {
     const minimapSize = 150;
-    // Position at bottom-left to avoid overlap with build menu
+    // Position at bottom-left
     const minimapX = 20;
-    const minimapY = GAME_CONFIG.HEIGHT - minimapSize - 140;
+    const minimapY = this.screenHeight - minimapSize - 50;
 
-    // Background
-    const bg = this.add.rectangle(minimapX - 10, minimapY - 30, minimapSize + 20, minimapSize + 40, 0x000000, 0.8);
-    bg.setOrigin(0, 0);
-    bg.setDepth(1000);
+    // Background with styled border matching menu style
+    this.minimapBg = this.add.rectangle(minimapX - 10, minimapY - 30, minimapSize + 20, minimapSize + 40, 0x1a1a1a, 0.9);
+    this.minimapBg.setOrigin(0, 0);
+    this.minimapBg.setDepth(1000);
+    this.minimapBg.setStrokeStyle(2, 0x4CAF50);
 
     // Label
-    this.add.text(minimapX, minimapY - 20, 'Minimap', {
+    this.minimapLabel = this.add.text(minimapX, minimapY - 20, 'Minimap', {
       fontSize: '14px',
       fill: '#ffffff',
-      fontFamily: 'Arial'
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
     }).setDepth(1001);
 
-    // Border
-    const border = this.add.rectangle(minimapX, minimapY, minimapSize, minimapSize);
-    border.setOrigin(0, 0);
-    border.setStrokeStyle(2, 0x4CAF50);
-    border.setFillStyle(0x1a3a1a, 0.5);
-    border.setDepth(1001);
+    // Border - make it interactive for click-to-move
+    this.minimapBorder = this.add.rectangle(minimapX, minimapY, minimapSize, minimapSize);
+    this.minimapBorder.setOrigin(0, 0);
+    this.minimapBorder.setStrokeStyle(2, 0x4CAF50);
+    this.minimapBorder.setFillStyle(0x1a3a1a, 0.5);
+    this.minimapBorder.setDepth(1001);
+    this.minimapBorder.setInteractive({ useHandCursor: true });
 
     // Store minimap properties
     this.minimapX = minimapX;
     this.minimapY = minimapY;
     this.minimapSize = minimapSize;
+
+    // Handle minimap clicks to move camera
+    this.minimapBorder.on('pointerdown', (pointer) => {
+      this.handleMinimapClick(pointer.x, pointer.y);
+    });
+
+    // Also handle drag on minimap
+    this.input.on('pointermove', (pointer) => {
+      if (pointer.isDown && this.isPointerOverMinimap(pointer.x, pointer.y)) {
+        this.handleMinimapClick(pointer.x, pointer.y);
+      }
+    });
 
     // Create graphics object for static terrain rendering (cached)
     this.minimapTerrainGraphics = this.add.graphics();
@@ -488,6 +563,10 @@ export default class UIScene extends Phaser.Scene {
     // Create graphics object for dynamic elements (units, buildings)
     this.minimapGraphics = this.add.graphics();
     this.minimapGraphics.setDepth(1003);
+
+    // Create graphics object for viewport indicator
+    this.minimapViewportGraphics = this.add.graphics();
+    this.minimapViewportGraphics.setDepth(1004);
 
     // Flag to track if terrain has been rendered
     this.minimapTerrainCached = false;
@@ -498,6 +577,7 @@ export default class UIScene extends Phaser.Scene {
 
   /**
    * Update minimap to show current game state
+   * Renders as a rotated diamond to match isometric view
    */
   updateMinimap() {
     if (!this.minimapGraphics) return;
@@ -509,14 +589,18 @@ export default class UIScene extends Phaser.Scene {
     const gridWidth = map.gridWidth;
     const gridHeight = map.gridHeight;
 
-    // Calculate pixel size for each grid tile on minimap
-    const pixelSize = this.minimapSize / Math.max(gridWidth, gridHeight);
+    // Minimap center
+    const centerX = this.minimapX + this.minimapSize / 2;
+    const centerY = this.minimapY + this.minimapSize / 2;
+
+    // Scale to fit rotated diamond in minimap area
+    const scale = (this.minimapSize * 0.7) / Math.max(gridWidth, gridHeight);
 
     // Render static terrain only once (cached)
     if (!this.minimapTerrainCached) {
       this.minimapTerrainGraphics.clear();
 
-      // Render each tile as a colored pixel
+      // Render each tile as a rotated diamond pixel
       for (let x = 0; x < gridWidth; x++) {
         for (let y = 0; y < gridHeight; y++) {
           const tile = map.getTile(x, y);
@@ -550,14 +634,14 @@ export default class UIScene extends Phaser.Scene {
               color = 0x66BB6A;  // Default green
           }
 
-          // Draw pixel
+          // Convert grid to isometric minimap position (rotated 45 degrees)
+          // This makes the diamond shape match the in-game isometric view
+          const isoX = (x - y) * scale * 0.5 + centerX;
+          const isoY = (x + y) * scale * 0.25 + centerY - gridHeight * scale * 0.25;
+
+          // Draw small diamond for each tile
           this.minimapTerrainGraphics.fillStyle(color, 1);
-          this.minimapTerrainGraphics.fillRect(
-            this.minimapX + x * pixelSize,
-            this.minimapY + y * pixelSize,
-            pixelSize + 0.5,  // Slight overlap to avoid gaps
-            pixelSize + 0.5
-          );
+          this.minimapTerrainGraphics.fillRect(isoX - scale * 0.3, isoY - scale * 0.15, scale * 0.6, scale * 0.3);
         }
       }
 
@@ -570,35 +654,149 @@ export default class UIScene extends Phaser.Scene {
     // Draw buildings (with faction colors)
     if (gameScene.buildings) {
       gameScene.buildings.forEach(building => {
-        // Use faction color, slightly brighter for buildings
         const factionColor = FACTION_COLORS[building.faction] || FACTION_COLORS.PLAYER;
         this.minimapGraphics.fillStyle(factionColor, 1);
 
-        const gridPos = { x: Math.floor(building.x / 32), y: Math.floor(building.y / 16) };
-        this.minimapGraphics.fillRect(
-          this.minimapX + gridPos.x * pixelSize,
-          this.minimapY + gridPos.y * pixelSize,
-          pixelSize * 2,
-          pixelSize * 2
-        );
+        // Convert world to grid coords
+        const gridX = Math.floor(building.x / 32);
+        const gridY = Math.floor(building.y / 16);
+
+        // Convert to isometric minimap position
+        const isoX = (gridX - gridY) * scale * 0.5 + centerX;
+        const isoY = (gridX + gridY) * scale * 0.25 + centerY - gridHeight * scale * 0.25;
+
+        this.minimapGraphics.fillRect(isoX - 2, isoY - 1, 4, 3);
       });
     }
 
     // Draw units (with faction colors)
-    if (gameScene.units && gameScene.units.length < 50) {
+    if (gameScene.units && gameScene.units.length < 100) {
       gameScene.units.forEach(unit => {
-        // Use faction color for units
         const factionColor = FACTION_COLORS[unit.faction] || FACTION_COLORS.PLAYER;
         this.minimapGraphics.fillStyle(factionColor, 1);
 
-        const gridPos = { x: Math.floor(unit.x / 32), y: Math.floor(unit.y / 16) };
-        this.minimapGraphics.fillRect(
-          this.minimapX + gridPos.x * pixelSize,
-          this.minimapY + gridPos.y * pixelSize,
-          pixelSize,
-          pixelSize
-        );
+        // Convert world to grid coords
+        const gridX = Math.floor(unit.x / 32);
+        const gridY = Math.floor(unit.y / 16);
+
+        // Convert to isometric minimap position
+        const isoX = (gridX - gridY) * scale * 0.5 + centerX;
+        const isoY = (gridX + gridY) * scale * 0.25 + centerY - gridHeight * scale * 0.25;
+
+        this.minimapGraphics.fillRect(isoX - 1, isoY - 1, 2, 2);
       });
+    }
+
+    // Draw camera viewport indicator
+    this.updateMinimapViewport(gameScene, scale, gridWidth, gridHeight, centerX, centerY);
+  }
+
+  /**
+   * Update the camera viewport indicator on the minimap
+   * Draws a trapezoid shape to represent the isometric camera view
+   */
+  updateMinimapViewport(gameScene, scale, gridWidth, gridHeight, centerX, centerY) {
+    if (!this.minimapViewportGraphics) return;
+    this.minimapViewportGraphics.clear();
+
+    const camera = gameScene.cameras.main;
+    if (!camera) return;
+
+    // Get camera bounds in world coordinates
+    const camLeft = camera.scrollX;
+    const camTop = camera.scrollY;
+    const camWidth = camera.width / camera.zoom;
+    const camHeight = camera.height / camera.zoom;
+
+    // Convert camera corners from world to grid coordinates
+    const tileWidthHalf = 32;
+    const tileHeightHalf = 16;
+
+    // World to grid conversion for isometric
+    const worldToGrid = (wx, wy) => {
+      const gx = (wx / tileWidthHalf + wy / tileHeightHalf) / 2;
+      const gy = (wy / tileHeightHalf - wx / tileWidthHalf) / 2;
+      return { x: gx, y: gy };
+    };
+
+    // Grid to minimap isometric position
+    const gridToMinimap = (gx, gy) => {
+      const isoX = (gx - gy) * scale * 0.5 + centerX;
+      const isoY = (gx + gy) * scale * 0.25 + centerY - gridHeight * scale * 0.25;
+      return { x: isoX, y: isoY };
+    };
+
+    // Get the 4 corners of the camera view in grid coords, then minimap coords
+    const topLeftGrid = worldToGrid(camLeft, camTop);
+    const topRightGrid = worldToGrid(camLeft + camWidth, camTop);
+    const bottomLeftGrid = worldToGrid(camLeft, camTop + camHeight);
+    const bottomRightGrid = worldToGrid(camLeft + camWidth, camTop + camHeight);
+
+    const topLeft = gridToMinimap(topLeftGrid.x, topLeftGrid.y);
+    const topRight = gridToMinimap(topRightGrid.x, topRightGrid.y);
+    const bottomLeft = gridToMinimap(bottomLeftGrid.x, bottomLeftGrid.y);
+    const bottomRight = gridToMinimap(bottomRightGrid.x, bottomRightGrid.y);
+
+    // Draw trapezoid/quadrilateral viewport
+    this.minimapViewportGraphics.lineStyle(2, 0xFFFFFF, 0.9);
+    this.minimapViewportGraphics.beginPath();
+    this.minimapViewportGraphics.moveTo(topLeft.x, topLeft.y);
+    this.minimapViewportGraphics.lineTo(topRight.x, topRight.y);
+    this.minimapViewportGraphics.lineTo(bottomRight.x, bottomRight.y);
+    this.minimapViewportGraphics.lineTo(bottomLeft.x, bottomLeft.y);
+    this.minimapViewportGraphics.closePath();
+    this.minimapViewportGraphics.strokePath();
+  }
+
+  /**
+   * Check if pointer is over the minimap area
+   */
+  isPointerOverMinimap(x, y) {
+    return x >= this.minimapX &&
+           x <= this.minimapX + this.minimapSize &&
+           y >= this.minimapY &&
+           y <= this.minimapY + this.minimapSize;
+  }
+
+  /**
+   * Handle click on minimap to move camera
+   */
+  handleMinimapClick(clickX, clickY) {
+    const gameScene = this.scene.get('GameScene');
+    if (!gameScene || !gameScene.isometricMap) return;
+
+    const map = gameScene.isometricMap;
+    const gridWidth = map.gridWidth;
+    const gridHeight = map.gridHeight;
+
+    // Match the scale and center calculation from updateMinimap
+    const scale = (this.minimapSize * 0.7) / Math.max(gridWidth, gridHeight);
+    const centerX = this.minimapX + this.minimapSize / 2;
+    const centerY = this.minimapY + this.minimapSize / 2;
+
+    // Convert click position to relative position from minimap center
+    const relX = clickX - centerX;
+    const relY = clickY - centerY + gridHeight * scale * 0.25;
+
+    // Reverse the isometric transformation to get grid coordinates
+    // isoX = (gx - gy) * scale * 0.5
+    // isoY = (gx + gy) * scale * 0.25
+    // Solving for gx and gy:
+    // gx = isoX / (scale * 0.5) + isoY / (scale * 0.25)) / 2
+    // gy = isoY / (scale * 0.25) - isoX / (scale * 0.5)) / 2
+    const gridX = (relX / (scale * 0.5) + relY / (scale * 0.25)) / 2;
+    const gridY = (relY / (scale * 0.25) - relX / (scale * 0.5)) / 2;
+
+    // Convert grid coordinates to world coordinates
+    const tileWidthHalf = 32;
+    const tileHeightHalf = 16;
+    const worldX = (gridX - gridY) * tileWidthHalf;
+    const worldY = (gridX + gridY) * tileHeightHalf;
+
+    // Move camera to center on this position
+    const camera = gameScene.cameras.main;
+    if (camera) {
+      camera.centerOn(worldX, worldY);
     }
   }
 
@@ -615,8 +813,8 @@ export default class UIScene extends Phaser.Scene {
   createBuildingPanel() {
     const panelWidth = 250;
     const panelHeight = 200;
-    const panelX = (GAME_CONFIG.WIDTH - 220 - panelWidth) / 2;
-    const panelY = GAME_CONFIG.HEIGHT - 120 - panelHeight - 20;
+    const panelX = (this.screenWidth - 220 - panelWidth) / 2;
+    const panelY = this.screenHeight - panelHeight - 50;
 
     // Container for all building panel elements
     this.buildingPanelContainer = this.add.container(0, 0);
@@ -698,6 +896,19 @@ export default class UIScene extends Phaser.Scene {
     this.buildingPanelContainer.add(this.trainScoutButton.icon);
     this.buildingPanelContainer.add(this.trainScoutButton.label);
     this.buildingPanelContainer.add(this.trainScoutButton.cost);
+
+    // Train Spy button (unlocked by Research Center)
+    this.trainSpyButton = this.createProductionButton(
+      panelX + 10,
+      panelY + 195,
+      'Train Spy',
+      '60 🌾 40 💧 30 🪵 10 🔧',
+      () => this.trainUnit('spy')
+    );
+    this.buildingPanelContainer.add(this.trainSpyButton.bg);
+    this.buildingPanelContainer.add(this.trainSpyButton.icon);
+    this.buildingPanelContainer.add(this.trainSpyButton.label);
+    this.buildingPanelContainer.add(this.trainSpyButton.cost);
 
     // Close button
     const closeBtn = this.add.text(panelX + panelWidth - 30, panelY + 5, '✕', {
@@ -805,7 +1016,7 @@ export default class UIScene extends Phaser.Scene {
           this.productionLabel.setText('Production: Idle');
         }
 
-        // Show worker button for Coop/NestingBox
+        // Show worker button for Coop
         const showWorker = building.canProduce.includes('worker');
         this.trainWorkerButton.bg.setVisible(showWorker);
         this.trainWorkerButton.icon.setVisible(showWorker);
@@ -825,6 +1036,13 @@ export default class UIScene extends Phaser.Scene {
         this.trainScoutButton.icon.setVisible(showScout);
         this.trainScoutButton.label.setVisible(showScout);
         this.trainScoutButton.cost.setVisible(showScout);
+
+        // Show Spy button for Barracks (when Research Center built)
+        const showSpy = building.canProduce.includes('spy');
+        this.trainSpyButton.bg.setVisible(showSpy);
+        this.trainSpyButton.icon.setVisible(showSpy);
+        this.trainSpyButton.label.setVisible(showSpy);
+        this.trainSpyButton.cost.setVisible(showSpy);
       } else {
         this.productionLabel.setVisible(false);
         this.trainWorkerButton.bg.setVisible(false);
@@ -839,6 +1057,10 @@ export default class UIScene extends Phaser.Scene {
         this.trainScoutButton.icon.setVisible(false);
         this.trainScoutButton.label.setVisible(false);
         this.trainScoutButton.cost.setVisible(false);
+        this.trainSpyButton.bg.setVisible(false);
+        this.trainSpyButton.icon.setVisible(false);
+        this.trainSpyButton.label.setVisible(false);
+        this.trainSpyButton.cost.setVisible(false);
       }
     }
 
@@ -886,33 +1108,27 @@ export default class UIScene extends Phaser.Scene {
   /**
    * Update resource display
    */
-  updateResources(food, water, sticks, tools = 0) {
+  updateResources(food, water, sticks, stone = 0, tools = 0) {
     this.resources.food = food;
     this.resources.water = water;
     this.resources.sticks = sticks;
+    this.resources.stone = stone;
     this.resources.tools = tools;
 
     this.foodText.setText(`🌾 ${food}`);
     this.waterText.setText(`💧 ${water}`);
     this.sticksText.setText(`🪵 ${sticks}`);
+    this.stoneText.setText(`🪨 ${stone}`);
     this.toolsText.setText(`🔧 ${tools}`);
   }
 
   /**
    * Update unit selection info
+   * Note: Bottom panel was removed - selection info is shown via unit highlighting
    */
   updateUnitInfo(selectedUnits) {
-    if (selectedUnits.length === 0) {
-      this.unitInfoText.setText('No units selected');
-      this.selectionCountText.setText('');
-    } else if (selectedUnits.length === 1) {
-      const unit = selectedUnits[0];
-      this.unitInfoText.setText(`${unit.unitType} - HP: ${unit.currentHealth}/${unit.maxHealth}`);
-      this.selectionCountText.setText('');
-    } else {
-      this.unitInfoText.setText('Multiple units selected');
-      this.selectionCountText.setText(`${selectedUnits.length} units`);
-    }
+    // Selection info is now shown via unit selection circles and status text
+    // No dedicated panel needed
   }
 
   /**
@@ -926,16 +1142,17 @@ export default class UIScene extends Phaser.Scene {
    * Create debug toggle button
    */
   createDebugToggle() {
-    const btnX = GAME_CONFIG.WIDTH - 240;
-    const btnY = GAME_CONFIG.HEIGHT - 140;
     const btnWidth = 100;
     const btnHeight = 30;
+    const btnX = this.screenWidth - 240;
+    const btnY = this.screenHeight - 50;
 
-    // Button background
+    // Button background with styled appearance
     this.debugButton = this.add.rectangle(btnX, btnY, btnWidth, btnHeight, 0xFF5722, 1);
     this.debugButton.setOrigin(0, 0);
     this.debugButton.setDepth(1001);
     this.debugButton.setInteractive({ useHandCursor: true });
+    this.debugButton.setStrokeStyle(2, 0xBF360C);
 
     // Button text
     this.debugButtonText = this.add.text(btnX + btnWidth / 2, btnY + btnHeight / 2, 'Debug: OFF', {
@@ -969,23 +1186,20 @@ export default class UIScene extends Phaser.Scene {
    * Create settings panel for volume controls
    */
   createSettingsPanel() {
-    const width = this.cameras.main.width;
-    const height = this.cameras.main.height;
-
     // Settings button (gear icon in top-right corner)
-    const settingsButton = this.add.text(width - 50, 10, '⚙️', {
+    this.settingsButton = this.add.text(this.screenWidth - 50, 10, '⚙️', {
       fontSize: '32px',
       padding: { x: 10, y: 10 }
     });
-    settingsButton.setInteractive({ useHandCursor: true });
-    settingsButton.setScrollFactor(0);
-    settingsButton.setDepth(1000);
+    this.settingsButton.setInteractive({ useHandCursor: true });
+    this.settingsButton.setScrollFactor(0);
+    this.settingsButton.setDepth(1000);
 
     // Settings panel (hidden by default)
     const panelWidth = 400;
     const panelHeight = 300;
-    const panelX = width / 2 - panelWidth / 2;
-    const panelY = height / 2 - panelHeight / 2;
+    const panelX = this.screenWidth / 2 - panelWidth / 2;
+    const panelY = this.screenHeight / 2 - panelHeight / 2;
 
     // Panel background
     this.settingsPanel = this.add.rectangle(panelX + panelWidth / 2, panelY + panelHeight / 2, panelWidth, panelHeight, 0x1a1a1a, 0.95);
@@ -1146,7 +1360,7 @@ export default class UIScene extends Phaser.Scene {
     }
 
     // Settings button click handler
-    settingsButton.on('pointerdown', () => {
+    this.settingsButton.on('pointerdown', () => {
       const isVisible = !this.settingsPanel.visible;
       this.settingsPanelElements.forEach(element => element.setVisible(isVisible));
     });

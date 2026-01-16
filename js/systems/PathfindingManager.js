@@ -202,25 +202,42 @@ export default class PathfindingManager {
    * Find nearest walkable tile to a given position
    * @param {number} gridX - Target grid X
    * @param {number} gridY - Target grid Y
-   * @param {number} maxRadius - Maximum search radius (default 3)
+   * @param {number} maxRadius - Maximum search radius (default 5)
    * @returns {{x: number, y: number} | null} - Nearest walkable tile or null
    */
-  findNearestWalkableTile(gridX, gridY, maxRadius = 3) {
+  findNearestWalkableTile(gridX, gridY, maxRadius = 5) {
+    // First check the tile itself
+    if (this.isValidCoordinate(gridX, gridY) &&
+        this.isometricMap.isWalkable(gridX, gridY)) {
+      return { x: gridX, y: gridY };
+    }
+
     // Check in expanding circles
     for (let radius = 1; radius <= maxRadius; radius++) {
+      // Collect all tiles at this radius and sort by true distance
+      const candidates = [];
+
       for (let dx = -radius; dx <= radius; dx++) {
         for (let dy = -radius; dy <= radius; dy++) {
-          // Only check tiles at current radius (not inside)
+          // Only check tiles at current radius ring (not inside)
           if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
             const testX = gridX + dx;
             const testY = gridY + dy;
 
             if (this.isValidCoordinate(testX, testY) &&
                 this.isometricMap.isWalkable(testX, testY)) {
-              return { x: testX, y: testY };
+              // Calculate true Euclidean distance
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              candidates.push({ x: testX, y: testY, dist: dist });
             }
           }
         }
+      }
+
+      // Return the closest one at this radius
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => a.dist - b.dist);
+        return { x: candidates[0].x, y: candidates[0].y };
       }
     }
 

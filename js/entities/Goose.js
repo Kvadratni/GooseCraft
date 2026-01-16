@@ -1,7 +1,7 @@
 // Goose - Worker Unit
 
 import Unit from './Unit.js';
-import { UNIT, UNIT_STATES, BUILDING_STATES } from '../utils/Constants.js';
+import { UNIT, UNIT_STATES, BUILDING_STATES, FACTIONS } from '../utils/Constants.js';
 import { worldToGridInt } from '../utils/IsometricUtils.js';
 
 export default class Goose extends Unit {
@@ -134,8 +134,11 @@ export default class Goose extends Unit {
       this.targetResource.x, this.targetResource.y
     );
 
-    // Extended gather distance for water resources
-    const gatherDistance = this.targetResource.getResourceType() === 'water' ? 80 : 50;
+    // Gather distance - needs to account for:
+    // 1. Resource spawn offset (±20 pixels)
+    // 2. Unit arriving at grid cell center vs exact resource position
+    // Water resources need extra range since units can't walk on water
+    const gatherDistance = this.targetResource.getResourceType() === 'water' ? 100 : 70;
 
     if (distance < gatherDistance) {
       // At the resource, start gathering
@@ -148,16 +151,19 @@ export default class Goose extends Unit {
 
         if (amountGathered > 0) {
           this.addToInventory(resourceType, amountGathered);
-          console.log(`Goose: Gathered ${amountGathered} ${resourceType}, inventory: food=${this.inventory.food} water=${this.inventory.water} sticks=${this.inventory.sticks} tools=${this.inventory.tools}`);
 
-          // Play gathering sound effect
-          if (this.scene.soundManager) {
-            if (resourceType === 'sticks') {
-              this.scene.soundManager.playSFX('sfx-gather-sticks');
-            } else if (resourceType === 'water') {
-              this.scene.soundManager.playSFX('sfx-gather-water');
+          // Only log and play sounds for player units
+          if (this.faction === FACTIONS.PLAYER) {
+            console.log(`Goose: Gathered ${amountGathered} ${resourceType}, inventory: food=${this.inventory.food} water=${this.inventory.water} sticks=${this.inventory.sticks} tools=${this.inventory.tools}`);
+
+            // Play gathering sound effect
+            if (this.scene.soundManager) {
+              if (resourceType === 'sticks') {
+                this.scene.soundManager.playSFX('sfx-gather-sticks');
+              } else if (resourceType === 'water') {
+                this.scene.soundManager.playSFX('sfx-gather-water');
+              }
             }
-            // Note: no specific sound for food gathering yet
           }
         }
 
@@ -165,19 +171,25 @@ export default class Goose extends Unit {
 
         // Check if inventory is full or should continue
         if (this.isInventoryFull()) {
-          console.log(`Goose: Inventory full (${this.inventoryMax}), returning to base`);
+          if (this.faction === FACTIONS.PLAYER) {
+            console.log(`Goose: Inventory full (${this.inventoryMax}), returning to base`);
+          }
           this.returnToBase();
         } else if (!this.targetResource.hasResources()) {
-          console.log(`Goose: Resource depleted after gathering`);
+          if (this.faction === FACTIONS.PLAYER) {
+            console.log(`Goose: Resource depleted after gathering`);
+          }
           this.findAndGatherNearestResource(resourceType);
-        } else {
+        } else if (this.faction === FACTIONS.PLAYER) {
           console.log(`Goose: Continue gathering (${this.inventory.food + this.inventory.water + this.inventory.sticks + this.inventory.tools}/${this.inventoryMax})`);
         }
         // Otherwise continue gathering
       }
     } else {
       // Not at resource yet - shouldn't happen in GATHERING state
-      console.log(`Goose: In GATHERING state but too far from resource (distance: ${Math.round(distance)}), moving to resource`);
+      if (this.faction === FACTIONS.PLAYER) {
+        console.log(`Goose: In GATHERING state but too far from resource (distance: ${Math.round(distance)}), moving to resource`);
+      }
       this.gatherFrom(this.targetResource);
     }
   }
@@ -257,8 +269,9 @@ export default class Goose extends Unit {
     const distance = Phaser.Math.Distance.Between(this.x, this.y, resourceNode.x, resourceNode.y);
     console.log(`Goose: Distance to resource: ${Math.round(distance)}`);
 
-    // Gathering distance increased for water resources (gather from adjacent land tile)
-    const gatherDistance = resourceNode.getResourceType() === 'water' ? 80 : 50;
+    // Gathering distance - must match the check in updateGatheringBehavior
+    // Water resources need extra range since units gather from adjacent land
+    const gatherDistance = resourceNode.getResourceType() === 'water' ? 100 : 70;
 
     if (distance < gatherDistance) {
       // Already at resource, start gathering immediately
@@ -405,8 +418,11 @@ export default class Goose extends Unit {
    */
   depositResources() {
     const resources = this.emptyInventory();
+    const isPlayer = this.faction === FACTIONS.PLAYER;
 
-    console.log(`Goose: Depositing resources: food=${resources.food}, water=${resources.water}, sticks=${resources.sticks}, tools=${resources.tools}`);
+    if (isPlayer) {
+      console.log(`Goose: Depositing resources: food=${resources.food}, water=${resources.water}, sticks=${resources.sticks}, tools=${resources.tools}`);
+    }
 
     // Check faction and deposit to appropriate manager
     if (this.faction === 'ENEMY_AI') {
@@ -425,7 +441,9 @@ export default class Goose extends Unit {
       if (this.scene.resourceManager) {
         for (const [type, amount] of Object.entries(resources)) {
           if (amount > 0) {
-            console.log(`Goose: Adding ${amount} ${type} to player stockpile`);
+            if (isPlayer) {
+              console.log(`Goose: Adding ${amount} ${type} to player stockpile`);
+            }
             this.scene.resourceManager.addResources(type, amount);
           }
         }
@@ -434,7 +452,9 @@ export default class Goose extends Unit {
       }
     }
 
-    console.log('Goose: Resources deposited successfully');
+    if (isPlayer) {
+      console.log('Goose: Resources deposited successfully');
+    }
   }
 
   /**

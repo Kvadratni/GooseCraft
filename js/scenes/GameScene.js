@@ -14,7 +14,6 @@ import SpatialHash from '../utils/SpatialHash.js';
 import Goose from '../entities/Goose.js';
 import ResourceNode from '../entities/ResourceNode.js';
 import Coop from '../buildings/Coop.js';
-import { screenToWorld } from '../utils/IsometricUtils.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -50,7 +49,6 @@ export default class GameScene extends Phaser.Scene {
     this.setupInput();
 
     // Create custom cursor
-    this.createCursor();
 
     // Initialize game state
     this.units = [];
@@ -86,10 +84,6 @@ export default class GameScene extends Phaser.Scene {
     this.updateCameraControls(delta);
 
     // Update custom cursor position
-    if (this.customCursor && this.input.activePointer) {
-      this.customCursor.x = this.input.activePointer.x;
-      this.customCursor.y = this.input.activePointer.y;
-    }
 
     // Update AI manager
     if (this.aiManager) {
@@ -173,7 +167,7 @@ export default class GameScene extends Phaser.Scene {
       trees: {
         count: 1000,  // 25x more trees for 5x larger map (40 * 25)
         type: 'sticks',
-        terrainTypes: ['grass', 'dirt', 'rock']  // Trees can spawn on various land types
+        terrainTypes: ['grass', 'dirt', 'rock', 'snow']  // Trees can spawn on various land types
       },
       crops: {
         count: 500,  // 25x more food sources (20 * 25)
@@ -181,10 +175,16 @@ export default class GameScene extends Phaser.Scene {
         terrainTypes: ['grass', 'dirt']  // Crops prefer grass/dirt
       },
       water: {
-        count: 375,  // 25x more water sources (15 * 25)
+        count: 400,  // Water sources on water tiles
         type: 'water',
-        terrainTypes: ['water']  // Only on water
+        terrainTypes: ['water']  // Only on water tiles
+      },
+      puddles: {
+        count: 800,  // Many small water puddles on land (more accessible)
+        type: 'water',
+        terrainTypes: ['grass', 'dirt', 'sand', 'snow']  // Puddles can appear on land and snow
       }
+      // Stone is no longer a gatherable resource - it can only be obtained by placing a Mine on rock tiles
     };
 
     // Spawn each resource type
@@ -450,38 +450,6 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Create custom cursor
-   */
-  createCursor() {
-    // Hide the default browser cursor
-    this.input.setDefaultCursor('none');
-
-    // Create a custom cursor graphic
-    this.customCursor = this.add.graphics();
-    this.customCursor.setDepth(DEPTH.UI + 100); // Above everything
-    this.customCursor.setScrollFactor(0, 0); // Fixed to screen
-
-    // Draw the cursor (simple arrow pointer)
-    this.customCursor.fillStyle(0xFFFFFF, 1);
-    this.customCursor.lineStyle(2, 0x000000, 1);
-
-    // Draw arrow shape
-    this.customCursor.beginPath();
-    this.customCursor.moveTo(0, 0);
-    this.customCursor.lineTo(0, 16);
-    this.customCursor.lineTo(4, 12);
-    this.customCursor.lineTo(8, 18);
-    this.customCursor.lineTo(10, 16);
-    this.customCursor.lineTo(6, 10);
-    this.customCursor.lineTo(12, 10);
-    this.customCursor.closePath();
-    this.customCursor.fillPath();
-    this.customCursor.strokePath();
-
-    console.log('GameScene: Custom cursor created');
-  }
-
-  /**
    * Handle right click (move, gather, or build command)
    */
   handleRightClick(pointer) {
@@ -495,7 +463,11 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    const worldPos = screenToWorld(pointer.x, pointer.y, this.cameras.main);
+    // Explicitly use this scene's camera for world coordinate conversion
+    // This ensures we're using the correct camera regardless of scene order
+    const camera = this.cameras.main;
+    const worldPoint = camera.getWorldPoint(pointer.x, pointer.y);
+    const worldPos = { x: worldPoint.x, y: worldPoint.y };
 
     // Check if clicking on a resource node
     const clickedResource = this.findResourceAtPosition(worldPos.x, worldPos.y);
@@ -670,19 +642,38 @@ export default class GameScene extends Phaser.Scene {
       panY += panSpeed;
     }
 
-    // Mouse edge scrolling
+    // Mouse edge scrolling (disabled when over UI areas)
     const pointer = this.input.activePointer;
-    if (pointer.x < this.edgeScrollMargin) {
-      panX -= panSpeed;
-    }
-    if (pointer.x > this.cameras.main.width - this.edgeScrollMargin) {
-      panX += panSpeed;
-    }
-    if (pointer.y < this.edgeScrollMargin) {
-      panY -= panSpeed;
-    }
-    if (pointer.y > this.cameras.main.height - this.edgeScrollMargin) {
-      panY += panSpeed;
+
+    // Define UI exclusion zones (where edge scrolling should be disabled)
+    const screenWidth = this.cameras.main.width;
+    const screenHeight = this.cameras.main.height;
+    const buildMenuWidth = 220;     // Right side build menu
+    const topBarHeight = 50;        // Top resource bar
+    const bottomBarHeight = 120;    // Bottom command bar
+    const minimapArea = { x: 0, y: screenHeight - 290, width: 180, height: 200 }; // Minimap area
+
+    // Check if pointer is over UI areas
+    const overRightMenu = pointer.x > screenWidth - buildMenuWidth;
+    const overTopBar = pointer.y < topBarHeight;
+    const overBottomBar = pointer.y > screenHeight - bottomBarHeight;
+    const overMinimap = pointer.x < minimapArea.width && pointer.y > minimapArea.y;
+    const overUI = overRightMenu || overTopBar || overBottomBar || overMinimap;
+
+    // Only apply edge scrolling if not over UI
+    if (!overUI) {
+      if (pointer.x < this.edgeScrollMargin) {
+        panX -= panSpeed;
+      }
+      if (pointer.x > screenWidth - this.edgeScrollMargin) {
+        panX += panSpeed;
+      }
+      if (pointer.y < this.edgeScrollMargin) {
+        panY -= panSpeed;
+      }
+      if (pointer.y > screenHeight - this.edgeScrollMargin) {
+        panY += panSpeed;
+      }
     }
 
     // Apply panning

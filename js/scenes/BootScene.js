@@ -34,6 +34,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('warrior', 'assets/units/warrior.png');
     this.load.image('archer', 'assets/units/archer.png');
     this.load.image('spy', 'assets/units/spy.png');
+    this.load.image('air-unit', 'assets/units/air-unit.png');
 
     // Load building sprites
     this.load.image('command-center', 'assets/buildings/command-center.png');
@@ -44,15 +45,17 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('resource-extractor', 'assets/buildings/resource-extractor.png');
     this.load.image('tower', 'assets/buildings/tower.png');
     this.load.image('airstrip', 'assets/buildings/airstrip.png');
+    this.load.image('mine', 'assets/buildings/mine.png');
 
     // Load resource sprite sheets
-    // Wheat crops: 800x600 sheet, 10 columns x 6 rows = 80x100 per frame
+    // Wheat crops: 800x600 sheet, 2 columns x 2 rows = 400x300 per frame (4 total frames)
     this.load.spritesheet('wheat', 'assets/resources/wheat.png', {
-      frameWidth: 80,
-      frameHeight: 100
+      frameWidth: 400,
+      frameHeight: 300
     });
 
-    // Trees: 448x224 sheet, 7 columns x 2 rows = 64x112 per frame
+    // Trees: 448x224 sheet, 7 columns x 2 rows = 64x112 per frame (14 total frames)
+    // Frame layout: 0-3 = full trees, 4 = dead tree (bare branches), 7-8 = small trees, 9 = grass, 13 = log stump
     this.load.spritesheet('trees', 'assets/resources/trees.png', {
       frameWidth: 64,
       frameHeight: 112
@@ -78,7 +81,7 @@ export default class BootScene extends Phaser.Scene {
       return;
     }
 
-    console.log('BootScene: Assets loaded successfully, transitioning to MenuScene');
+    console.log('BootScene: Assets loaded successfully, transitioning to SplashScene');
 
     // Debug: Check if spritesheets loaded correctly
     try {
@@ -90,9 +93,9 @@ export default class BootScene extends Phaser.Scene {
       console.error('BootScene: Error checking texture info:', error);
     }
 
-    // Transition to menu after a brief delay
+    // Transition to splash screen after a brief delay
     this.time.delayedCall(500, () => {
-      this.scene.start('MenuScene');
+      this.scene.start('SplashScene');
     });
   }
 

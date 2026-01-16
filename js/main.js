@@ -2,18 +2,18 @@
 
 import { GAME_CONFIG } from './utils/Constants.js';
 import BootScene from './scenes/BootScene.js';
+import SplashScene from './scenes/SplashScene.js';
 import MenuScene from './scenes/MenuScene.js';
 import GameScene from './scenes/GameScene.js';
 import UIScene from './scenes/UIScene.js';
 
 // Phaser Game Configuration
+// Use window dimensions for fullscreen experience
 const config = {
   type: Phaser.AUTO,
-  width: GAME_CONFIG.WIDTH,
-  height: GAME_CONFIG.HEIGHT,
   backgroundColor: GAME_CONFIG.BACKGROUND_COLOR,
   parent: 'game-container',
-  scene: [BootScene, MenuScene, GameScene, UIScene],
+  scene: [BootScene, SplashScene, MenuScene, GameScene, UIScene],
   physics: {
     default: 'arcade',
     arcade: {
@@ -26,8 +26,10 @@ const config = {
     antialias: false
   },
   scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH
+    mode: Phaser.Scale.RESIZE,
+    parent: 'game-container',
+    width: '100%',
+    height: '100%'
   }
 };
 

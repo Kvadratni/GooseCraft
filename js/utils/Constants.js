@@ -37,6 +37,7 @@ export const UNIT = {
   SPEED_WORKER: 100,    // pixels per second
   SPEED_GUARD: 90,
   SPEED_SCOUT: 150,
+  SPEED_SPY: 120,       // Fast and stealthy
   SPEED_HONKER: 80,
   VISION_RANGE: 5,      // tiles
   HEALTH_MAX: 100,
@@ -59,9 +60,9 @@ export const BUILDING = {
     buildable: false,  // Can't build more Coops
     description: 'Your main base and command center. Workers deposit gathered resources here. Can train new worker geese to expand your colony.'
   },
-  FEED_STORAGE: {
-    name: 'FeedStorage',
-    displayName: 'Feed Storage',
+  RESOURCE_STORAGE: {
+    name: 'ResourceStorage',
+    displayName: 'Resource Storage',
     width: 128,
     height: 128,
     footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
@@ -71,19 +72,6 @@ export const BUILDING = {
     tier: 1,
     buildable: true,
     description: 'Increases your storage capacity for all resources. Build this first to stockpile resources and unlock advanced buildings. Essential for economic expansion.'
-  },
-  RESOURCE_EXTRACTOR: {
-    name: 'ResourceExtractor',
-    displayName: 'Resource Extractor',
-    width: 64,
-    height: 64,
-    footprint: [[0,0]], // 1x1
-    health: 150,
-    cost: { food: 30, water: 0, sticks: 75, tools: 0 },
-    constructionTime: 8000,
-    tier: 1,
-    buildable: true,
-    description: 'Automated gathering station. Place near resource nodes (crops, trees, water) to automatically harvest resources without worker assignment. Gathers 5 resources every 5 seconds.'
   },
   FACTORY: {
     name: 'Factory',
@@ -96,22 +84,22 @@ export const BUILDING = {
     constructionTime: 20000,
     tier: 2,
     buildable: true,
-    unlockCondition: { building: 'FeedStorage', count: 1 },
-    description: 'Industrial production facility. Converts sticks into tools, which are required for advanced buildings. Unlocks Tier 3 buildings (Barracks, Watchtower, Power Station).'
+    unlockCondition: { building: 'ResourceStorage', count: 1 },
+    description: 'Industrial production facility. Converts sticks into tools, which are required for advanced buildings. Unlocks Tier 3 buildings (Barracks, Watchtower, Research Center).'
   },
-  NESTING_BOX: {
-    name: 'NestingBox',
-    displayName: 'Nesting Box',
+  RESEARCH_CENTER: {
+    name: 'ResearchCenter',
+    displayName: 'Research Center',
     width: 128,
     height: 128,
     footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
     health: 250,
-    cost: { food: 100, water: 0, sticks: 150, tools: 10 },
-    constructionTime: 15000,
-    tier: 2,
+    cost: { food: 75, water: 100, sticks: 150, tools: 20 },
+    constructionTime: 18000,
+    tier: 3,
     buildable: true,
-    unlockCondition: { building: 'FeedStorage', count: 1 },
-    description: 'Breeding facility for worker geese. Trains additional worker units to gather resources more efficiently. Requires tools to construct. Expand your workforce!'
+    unlockCondition: { building: 'Factory', count: 1 },
+    description: 'Advanced research facility. Unlocks Spy units at the Barracks for reconnaissance and sabotage. Essential for intelligence gathering against enemies.'
   },
   BARRACKS: {
     name: 'Barracks',
@@ -154,6 +142,38 @@ export const BUILDING = {
     buildable: true,
     unlockCondition: { building: 'Factory', count: 1 },
     description: 'Advanced energy facility. Powers future high-tech buildings and provides passive resource bonuses. Most expensive building - only build when you have a strong economy.'
+  },
+  MINE: {
+    name: 'Mine',
+    displayName: 'Mine',
+    width: 128,
+    height: 128,
+    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    health: 300,
+    cost: { food: 0, water: 50, sticks: 200, tools: 10 },
+    constructionTime: 15000,
+    tier: 2,
+    buildable: true,
+    unlockCondition: { building: 'Coop', count: 1 },
+    spriteKey: 'mine',
+    size: 128,
+    description: 'Stone mining facility. Place near stone deposits to extract stone resources. Workers will automatically mine stone from nearby deposits.'
+  },
+  AIRSTRIP: {
+    name: 'Airstrip',
+    displayName: 'Airstrip',
+    width: 128,
+    height: 128,
+    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    health: 200,
+    cost: { food: 0, water: 100, sticks: 300, stone: 200, tools: 25 },
+    constructionTime: 20000,
+    tier: 3,
+    buildable: true,
+    unlockCondition: { building: 'Barracks', count: 1 },
+    spriteKey: 'airstrip',
+    size: 128,
+    description: 'Advanced military facility for air units. Trains fast, mobile aerial units with ranged attacks. Requires significant resources but provides powerful reconnaissance and strike capabilities.'
   }
 };
 
@@ -177,6 +197,12 @@ export const RESOURCE = {
     gatherRate: 6,
     regenerateRate: 0
   },
+  STONE: {
+    name: 'Stone',
+    capacity: 50,  // Stone deposits
+    gatherRate: 8,
+    regenerateRate: 0
+  },
   TOOLS: {
     name: 'Tools',
     capacity: 0,  // Not gathered from map - produced by Factory
@@ -190,11 +216,13 @@ export const STORAGE = {
   FOOD: 500,
   WATER: 300,
   STICKS: 1000,
+  STONE: 500,  // Stone storage
   TOOLS: 100,  // Tools storage
-  // Increased by building FeedStorage
+  // Increased by building ResourceStorage
   FOOD_PER_STORAGE: 300,
   WATER_PER_STORAGE: 200,
   STICKS_PER_STORAGE: 500,
+  STONE_PER_STORAGE: 300,
   TOOLS_PER_STORAGE: 100
 };
 
@@ -203,6 +231,7 @@ export const STARTING_RESOURCES = {
   food: 200,
   water: 100,
   sticks: 150,
+  stone: 0,  // Stone must be mined
   tools: 0  // Tools must be produced by Factory
 };
 
@@ -273,10 +302,12 @@ export const FACTION_COLORS = {
 
 // Unit Costs (resources required to train)
 export const UNIT_COSTS = {
-  WORKER: { food: 50, water: 0, sticks: 0, tools: 0 },
-  GUARD: { food: 75, water: 25, sticks: 50, tools: 5 },
-  SCOUT: { food: 40, water: 30, sticks: 20, tools: 3 },
-  HONKER: { food: 150, water: 50, sticks: 100, tools: 15 }
+  WORKER: { food: 50, water: 0, sticks: 0, stone: 0, tools: 0 },
+  GUARD: { food: 75, water: 25, sticks: 50, stone: 0, tools: 5 },
+  SCOUT: { food: 40, water: 30, sticks: 20, stone: 0, tools: 3 },
+  SPY: { food: 60, water: 40, sticks: 30, stone: 0, tools: 10 },
+  HONKER: { food: 150, water: 50, sticks: 100, stone: 50, tools: 15 },
+  AIR_UNIT: { food: 100, water: 50, sticks: 80, stone: 100, tools: 20 }
 };
 
 // Unit Train Time (milliseconds)
@@ -284,7 +315,9 @@ export const UNIT_TRAIN_TIME = {
   WORKER: 5000,   // 5 seconds
   GUARD: 8000,    // 8 seconds
   SCOUT: 6000,    // 6 seconds
-  HONKER: 12000   // 12 seconds
+  SPY: 10000,     // 10 seconds
+  HONKER: 12000,  // 12 seconds
+  AIR_UNIT: 10000 // 10 seconds
 };
 
 // Colors

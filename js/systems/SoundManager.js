@@ -5,8 +5,8 @@ export default class SoundManager {
     this.scene = scene;
 
     // Load saved volume settings from localStorage
-    this.musicVolume = this.loadVolumeSetting('musicVolume', 0.2); // Default 20%
-    this.sfxVolume = this.loadVolumeSetting('sfxVolume', 1.0); // Default 100%
+    this.musicVolume = this.loadVolumeSetting('musicVolume', 0.1); // Default 10%
+    this.sfxVolume = this.loadVolumeSetting('sfxVolume', 0.7); // Default 70%
 
     // Music tracks
     this.currentMusic = null;
@@ -51,20 +51,30 @@ export default class SoundManager {
   playMusic(key, fadeIn = true) {
     // Stop current music if playing
     if (this.currentMusic) {
-      if (fadeIn) {
-        this.scene.tweens.add({
-          targets: this.currentMusic,
-          volume: 0,
-          duration: 1000,
-          onComplete: () => {
-            this.currentMusic.stop();
-            this.startMusic(key, fadeIn);
-          }
-        });
-        return;
-      } else {
-        this.currentMusic.stop();
+      // Kill any existing tweens on the music first
+      this.scene.tweens.killTweensOf(this.currentMusic);
+
+      if (this.currentMusic.isPlaying) {
+        if (fadeIn) {
+          const oldMusic = this.currentMusic;
+          this.currentMusic = null; // Clear reference immediately
+          this.scene.tweens.add({
+            targets: oldMusic,
+            volume: 0,
+            duration: 1000,
+            onComplete: () => {
+              if (oldMusic && oldMusic.isPlaying) {
+                oldMusic.stop();
+              }
+              this.startMusic(key, fadeIn);
+            }
+          });
+          return;
+        } else {
+          this.currentMusic.stop();
+        }
       }
+      this.currentMusic = null;
     }
 
     this.startMusic(key, fadeIn);
@@ -74,49 +84,71 @@ export default class SoundManager {
    * Start playing music
    */
   startMusic(key, fadeIn) {
-    // Create or get music track
-    if (!this.musicTracks[key]) {
-      this.musicTracks[key] = this.scene.sound.add(key, {
-        loop: true,
-        volume: this.musicVolume
-      });
+    try {
+      // Create or get music track
+      if (!this.musicTracks[key]) {
+        this.musicTracks[key] = this.scene.sound.add(key, {
+          loop: true,
+          volume: this.musicVolume
+        });
+      }
+
+      this.currentMusic = this.musicTracks[key];
+
+      if (!this.currentMusic) {
+        console.warn(`SoundManager: Failed to create music track '${key}'`);
+        return;
+      }
+
+      if (fadeIn) {
+        this.currentMusic.setVolume(0);
+        this.currentMusic.play();
+        this.scene.tweens.add({
+          targets: this.currentMusic,
+          volume: this.musicVolume,
+          duration: 2000
+        });
+      } else {
+        this.currentMusic.setVolume(this.musicVolume);
+        this.currentMusic.play();
+      }
+
+      console.log(`SoundManager: Playing music '${key}' at ${this.musicVolume * 100}% volume`);
+    } catch (error) {
+      console.warn(`SoundManager: Error starting music '${key}':`, error);
     }
-
-    this.currentMusic = this.musicTracks[key];
-
-    if (fadeIn) {
-      this.currentMusic.volume = 0;
-      this.currentMusic.play();
-      this.scene.tweens.add({
-        targets: this.currentMusic,
-        volume: this.musicVolume,
-        duration: 2000
-      });
-    } else {
-      this.currentMusic.volume = this.musicVolume;
-      this.currentMusic.play();
-    }
-
-    console.log(`SoundManager: Playing music '${key}' at ${this.musicVolume * 100}% volume`);
   }
 
   /**
    * Stop current music
    */
   stopMusic(fadeOut = true) {
-    if (!this.currentMusic || !this.currentMusic.isPlaying) return;
+    if (!this.currentMusic) return;
+
+    // Kill any existing tweens on the music to prevent "null volume" errors
+    this.scene.tweens.killTweensOf(this.currentMusic);
+
+    if (!this.currentMusic.isPlaying) {
+      this.currentMusic = null;
+      return;
+    }
+
+    const musicToStop = this.currentMusic;
+    this.currentMusic = null; // Clear reference immediately
 
     if (fadeOut) {
       this.scene.tweens.add({
-        targets: this.currentMusic,
+        targets: musicToStop,
         volume: 0,
         duration: 1000,
         onComplete: () => {
-          this.currentMusic.stop();
+          if (musicToStop && musicToStop.isPlaying) {
+            musicToStop.stop();
+          }
         }
       });
     } else {
-      this.currentMusic.stop();
+      musicToStop.stop();
     }
   }
 
@@ -156,9 +188,13 @@ export default class SoundManager {
     this.musicVolume = Math.max(0, Math.min(1, volume));
     this.saveVolumeSetting('musicVolume', this.musicVolume);
 
-    // Update current music volume
-    if (this.currentMusic) {
-      this.currentMusic.setVolume(this.musicVolume);
+    // Update current music volume (safely)
+    if (this.currentMusic && this.currentMusic.isPlaying) {
+      try {
+        this.currentMusic.setVolume(this.musicVolume);
+      } catch (error) {
+        console.warn('SoundManager: Failed to set music volume:', error);
+      }
     }
 
     console.log(`SoundManager: Music volume set to ${this.musicVolume * 100}%`);
@@ -192,9 +228,20 @@ export default class SoundManager {
    * Clean up
    */
   destroy() {
+    // Kill all tweens on music tracks first
+    Object.values(this.musicTracks).forEach(track => {
+      if (track) {
+        this.scene.tweens.killTweensOf(track);
+      }
+    });
+
     if (this.currentMusic) {
-      this.currentMusic.stop();
+      this.scene.tweens.killTweensOf(this.currentMusic);
+      if (this.currentMusic.isPlaying) {
+        this.currentMusic.stop();
+      }
     }
+    this.currentMusic = null;
 
     // Destroy all cached music tracks
     Object.values(this.musicTracks).forEach(track => {

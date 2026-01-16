@@ -30,13 +30,15 @@ export function worldToGrid(worldX, worldY) {
  * Convert isometric world coordinates to integer grid coordinates
  * @param {number} worldX - World X coordinate in pixels
  * @param {number} worldY - World Y coordinate in pixels
- * @returns {object} {x, y} Grid coordinates (floored to integers)
+ * @returns {object} {x, y} Grid coordinates (rounded to nearest integers)
  */
 export function worldToGridInt(worldX, worldY) {
   const grid = worldToGrid(worldX, worldY);
+  // Use Math.round for more accurate tile detection
+  // Math.floor caused units near tile edges to map to wrong cells
   return {
-    x: Math.floor(grid.x),
-    y: Math.floor(grid.y)
+    x: Math.round(grid.x),
+    y: Math.round(grid.y)
   };
 }
 
@@ -48,10 +50,10 @@ export function worldToGridInt(worldX, worldY) {
  * @returns {object} {x, y} World coordinates
  */
 export function screenToWorld(screenX, screenY, camera) {
-  // First divide by zoom to get world-scale coordinates, then add camera scroll
-  const worldX = screenX / camera.zoom + camera.scrollX;
-  const worldY = screenY / camera.zoom + camera.scrollY;
-  return { x: worldX, y: worldY };
+  // Use Phaser's built-in method for accurate screen-to-world conversion
+  // This properly handles zoom, scroll, and viewport offset
+  const worldPoint = camera.getWorldPoint(screenX, screenY);
+  return { x: worldPoint.x, y: worldPoint.y };
 }
 
 /**

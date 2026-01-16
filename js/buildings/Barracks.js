@@ -22,7 +22,37 @@ export default class Barracks extends Building {
 
     // Production capability
     this.productionQueue = new ProductionQueue(this, scene);
-    this.canProduce = ['guard', 'scout']; // Barracks produces combat units
+    this.canProduce = ['guard', 'scout']; // Base units, spy unlocked by Research Center
+
+    // Check if Research Center already exists (for barracks built after research center)
+    this.checkForResearchCenter();
+  }
+
+  /**
+   * Check if a Research Center exists and unlock spy if so
+   */
+  checkForResearchCenter() {
+    if (!this.scene.buildings) return;
+
+    const hasResearchCenter = this.scene.buildings.some(
+      building => building.buildingType === 'RESEARCH_CENTER' &&
+                  building.faction === this.faction &&
+                  building.state === 'OPERATIONAL'
+    );
+
+    if (hasResearchCenter) {
+      this.unlockSpy();
+    }
+  }
+
+  /**
+   * Unlock spy unit training (called by Research Center when built)
+   */
+  unlockSpy() {
+    if (!this.canProduce.includes('spy')) {
+      this.canProduce.push('spy');
+      console.log('Barracks: Spy training unlocked!');
+    }
   }
 
   /**
@@ -42,5 +72,12 @@ export default class Barracks extends Building {
    */
   onConstructionComplete() {
     console.log('Barracks: Military training facility operational - can train Guards and Scouts');
+
+    // Check again in case research center was built while this was under construction
+    this.checkForResearchCenter();
+
+    if (this.canProduce.includes('spy')) {
+      console.log('Barracks: Spy training available (Research Center detected)');
+    }
   }
 }

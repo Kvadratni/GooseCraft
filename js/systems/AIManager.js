@@ -3,10 +3,10 @@
 import { FACTIONS, UNIT_STATES, MAP, BUILDING } from '../utils/Constants.js';
 import { worldToGridInt } from '../utils/IsometricUtils.js';
 import Coop from '../buildings/Coop.js';
-import NestingBox from '../buildings/NestingBox.js';
+import ResourceStorage from '../buildings/ResourceStorage.js';
 import Barracks from '../buildings/Barracks.js';
 import Factory from '../buildings/Factory.js';
-import ResourceExtractor from '../buildings/ResourceExtractor.js';
+import Mine from '../buildings/Mine.js';
 import Goose from '../entities/Goose.js';
 import Guard from '../entities/Guard.js';
 import Scout from '../entities/Scout.js';
@@ -465,33 +465,33 @@ export default class AIManager {
    * Build structures (called during BUILDING state)
    */
   buildStructures() {
-    // Build priority: Factory -> Barracks -> ResourceExtractor -> NestingBox
+    // Build priority: ResourceStorage -> Factory -> Mine -> Barracks
+
+    // Check if we need ResourceStorage (for capacity and unlocks)
+    const hasStorage = this.aiBuildings.some(b => b.buildingType === 'RESOURCE_STORAGE' && b.active);
+    if (!hasStorage && this.canAfford({ food: 50, water: 0, sticks: 100, tools: 0 })) {
+      this.buildBuilding('RESOURCE_STORAGE');
+      return;
+    }
 
     // Check if we need Factory (for tool production)
     const hasFactory = this.aiBuildings.some(b => b.buildingType === 'FACTORY' && b.active);
-    if (!hasFactory && this.canAfford({ food: 0, water: 0, sticks: 200, tools: 0 })) {
+    if (!hasFactory && hasStorage && this.canAfford({ food: 100, water: 50, sticks: 200, tools: 0 })) {
       this.buildBuilding('FACTORY');
+      return;
+    }
+
+    // Build Mine on rock terrain (limit to 2)
+    const mineCount = this.aiBuildings.filter(b => b.buildingType === 'MINE' && b.active).length;
+    if (mineCount < 2 && hasFactory && this.canAfford({ food: 0, water: 50, sticks: 200, tools: 10 })) {
+      this.buildBuilding('MINE');
       return;
     }
 
     // Check if we need Barracks (for combat unit production)
     const hasBarracks = this.aiBuildings.some(b => b.buildingType === 'BARRACKS' && b.active);
-    if (!hasBarracks && hasFactory && this.canAfford({ food: 100, water: 50, sticks: 300, tools: 20 })) {
+    if (!hasBarracks && hasFactory && this.canAfford({ food: 150, water: 0, sticks: 250, tools: 25 })) {
       this.buildBuilding('BARRACKS');
-      return;
-    }
-
-    // Build ResourceExtractors near resources (limit to 3)
-    const extractorCount = this.aiBuildings.filter(b => b.buildingType === 'RESOURCE_EXTRACTOR' && b.active).length;
-    if (extractorCount < 3 && this.canAfford({ food: 0, water: 0, sticks: 150, tools: 10 })) {
-      this.buildBuilding('RESOURCE_EXTRACTOR');
-      return;
-    }
-
-    // Build NestingBox for redundant worker production
-    const nestingCount = this.aiBuildings.filter(b => b.buildingType === 'NESTING_BOX' && b.active).length;
-    if (nestingCount < 1 && this.canAfford({ food: 50, water: 25, sticks: 100, tools: 5 })) {
-      this.buildBuilding('NESTING_BOX');
       return;
     }
   }
@@ -504,10 +504,10 @@ export default class AIManager {
 
     // Building class map
     const buildingClassMap = {
-      'NESTING_BOX': NestingBox,
+      'RESOURCE_STORAGE': ResourceStorage,
       'BARRACKS': Barracks,
       'FACTORY': Factory,
-      'RESOURCE_EXTRACTOR': ResourceExtractor
+      'MINE': Mine
     };
 
     const BuildingClass = buildingClassMap[buildingType];
@@ -621,6 +621,6 @@ export default class AIManager {
       this.resources[type] = 0;
     }
     this.resources[type] += amount;
-    console.log(`AIManager: Gained ${amount} ${type} (Total: ${this.resources[type]})`);
+    // Silent - AI resource gains don't need to be logged
   }
 }
