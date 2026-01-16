@@ -174,6 +174,54 @@ export const BUILDING = {
     spriteKey: 'airstrip',
     size: 128,
     description: 'Advanced military facility for air units. Trains fast, mobile aerial units with ranged attacks. Requires significant resources but provides powerful reconnaissance and strike capabilities.'
+  },
+  FARM: {
+    name: 'Farm',
+    displayName: 'Farm',
+    width: 128,
+    height: 128,
+    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    health: 150,
+    cost: { food: 25, water: 50, sticks: 100, tools: 5 },
+    constructionTime: 12000,
+    tier: 2,
+    buildable: true,
+    unlockCondition: { building: 'ResourceStorage', count: 1 },
+    spriteKey: 'farm',
+    size: 128,
+    description: 'Agricultural facility that automatically grows and harvests food. Place on grass terrain for best yields. Essential for sustainable food production without manual gathering.'
+  },
+  WELL: {
+    name: 'Well',
+    displayName: 'Well',
+    width: 64,
+    height: 64,
+    footprint: [[0,0]], // 1x1
+    health: 100,
+    cost: { food: 25, water: 0, sticks: 75, stone: 25, tools: 3 },
+    constructionTime: 8000,
+    tier: 2,
+    buildable: true,
+    unlockCondition: { building: 'ResourceStorage', count: 1 },
+    spriteKey: 'well',
+    size: 64,
+    description: 'Extracts groundwater automatically. A small but steady source of water that frees up workers for other tasks. Best built near your base for convenience.'
+  },
+  LUMBER_MILL: {
+    name: 'LumberMill',
+    displayName: 'Lumber Mill',
+    width: 128,
+    height: 128,
+    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    health: 200,
+    cost: { food: 50, water: 25, sticks: 150, tools: 8 },
+    constructionTime: 15000,
+    tier: 2,
+    buildable: true,
+    unlockCondition: { building: 'ResourceStorage', count: 1 },
+    spriteKey: 'lumber-mill',
+    size: 128,
+    description: 'Wood processing facility that automatically produces sticks. Best placed near forests. Provides a steady supply of building materials without manual tree chopping.'
   }
 };
 

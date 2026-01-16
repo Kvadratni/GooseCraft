@@ -1346,6 +1346,15 @@ export default class UIScene extends Phaser.Scene {
       case 'RESOURCE_STORAGE':
         this.showResourceStoragePanel(building);
         break;
+      case 'FARM':
+        this.showFarmPanel(building);
+        break;
+      case 'WELL':
+        this.showWellPanel(building);
+        break;
+      case 'LUMBER_MILL':
+        this.showLumberMillPanel(building);
+        break;
       default:
         // Generic building with no special features
         this.buildingInfoText.setText('');
@@ -1694,6 +1703,96 @@ export default class UIScene extends Phaser.Scene {
 
     this.sectionLabel.setText('');
     this.resizePanel(0, true);
+  }
+
+  /**
+   * Show Farm panel (food production + upgrades)
+   */
+  showFarmPanel(building) {
+    const status = building.getUpgradeStatus?.() || {};
+    const statusText = building.getStatusText?.() || '';
+    this.buildingInfoText.setText(statusText || `Producing ${status.gatherAmount || 8} food every ${(status.gatherInterval || 6000) / 1000}s`);
+
+    const upgrades = building.upgrades || {};
+    const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
+
+    this.sectionLabel.setText('Upgrades:');
+    let buttonY = this.resizePanel(availableUpgrades.length, true);
+
+    const gameScene = this.scene.get('GameScene');
+    const resourceManager = gameScene?.resourceManager;
+
+    for (const [key, upgrade] of availableUpgrades) {
+      const canAfford = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        upgrade.name, this.formatUpgradeCost(upgrade.cost),
+        '⬆️', () => this.purchaseUpgrade(key),
+        !canAfford,
+        upgrade.description || 'Upgrade your farm.'
+      ));
+      buttonY += 48;
+    }
+  }
+
+  /**
+   * Show Well panel (water extraction + upgrades)
+   */
+  showWellPanel(building) {
+    const status = building.getUpgradeStatus?.() || {};
+    const statusText = building.getStatusText?.() || '';
+    this.buildingInfoText.setText(statusText || `Extracting ${status.gatherAmount || 5} water every ${(status.gatherInterval || 4000) / 1000}s`);
+
+    const upgrades = building.upgrades || {};
+    const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
+
+    this.sectionLabel.setText('Upgrades:');
+    let buttonY = this.resizePanel(availableUpgrades.length, true);
+
+    const gameScene = this.scene.get('GameScene');
+    const resourceManager = gameScene?.resourceManager;
+
+    for (const [key, upgrade] of availableUpgrades) {
+      const canAfford = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        upgrade.name, this.formatUpgradeCost(upgrade.cost),
+        '⬆️', () => this.purchaseUpgrade(key),
+        !canAfford,
+        upgrade.description || 'Upgrade your well.'
+      ));
+      buttonY += 48;
+    }
+  }
+
+  /**
+   * Show Lumber Mill panel (sticks production + upgrades)
+   */
+  showLumberMillPanel(building) {
+    const status = building.getUpgradeStatus?.() || {};
+    const statusText = building.getStatusText?.() || '';
+    this.buildingInfoText.setText(statusText || `Producing ${status.gatherAmount || 6} sticks every ${(status.gatherInterval || 5000) / 1000}s`);
+
+    const upgrades = building.upgrades || {};
+    const availableUpgrades = Object.entries(upgrades).filter(([k, v]) => !v.purchased);
+
+    this.sectionLabel.setText('Upgrades:');
+    let buttonY = this.resizePanel(availableUpgrades.length, true);
+
+    const gameScene = this.scene.get('GameScene');
+    const resourceManager = gameScene?.resourceManager;
+
+    for (const [key, upgrade] of availableUpgrades) {
+      const canAfford = resourceManager ? resourceManager.canAfford(upgrade.cost) : true;
+      this.dynamicButtons.push(this.createDynamicButton(
+        this.panelX + 10, buttonY,
+        upgrade.name, this.formatUpgradeCost(upgrade.cost),
+        '⬆️', () => this.purchaseUpgrade(key),
+        !canAfford,
+        upgrade.description || 'Upgrade your lumber mill.'
+      ));
+      buttonY += 48;
+    }
   }
 
   /**

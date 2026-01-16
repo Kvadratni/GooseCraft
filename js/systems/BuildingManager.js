@@ -12,6 +12,9 @@ import Mine from '../buildings/Mine.js';
 import Airstrip from '../buildings/Airstrip.js';
 import Watchtower from '../buildings/Watchtower.js';
 import PowerStation from '../buildings/PowerStation.js';
+import Farm from '../buildings/Farm.js';
+import Well from '../buildings/Well.js';
+import LumberMill from '../buildings/LumberMill.js';
 
 export default class BuildingManager {
   constructor(scene) {
@@ -108,7 +111,10 @@ export default class BuildingManager {
       'MINE': 'mine',
       'AIRSTRIP': 'airstrip',
       'WATCHTOWER': 'tower',
-      'POWER_STATION': 'power-station'
+      'POWER_STATION': 'power-station',
+      'FARM': 'farm',
+      'WELL': 'well',
+      'LUMBER_MILL': 'lumber-mill'
     };
     return mapping[buildingType] || 'command-center';
   }
@@ -226,7 +232,10 @@ export default class BuildingManager {
       'MINE': Mine,
       'AIRSTRIP': Airstrip,
       'WATCHTOWER': Watchtower,
-      'POWER_STATION': PowerStation
+      'POWER_STATION': PowerStation,
+      'FARM': Farm,
+      'WELL': Well,
+      'LUMBER_MILL': LumberMill
     };
 
     const BuildingClass = buildingClassMap[this.currentBuildingType];

@@ -46,6 +46,9 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('tower', 'assets/buildings/tower.png');
     this.load.image('airstrip', 'assets/buildings/airstrip.png');
     this.load.image('mine', 'assets/buildings/mine.png');
+    this.load.image('farm', 'assets/buildings/farm.png');
+    this.load.image('well', 'assets/buildings/well.png');
+    this.load.image('lumber-mill', 'assets/buildings/lumber_mill.png');
 
     // Load resource sprite sheets
     // Wheat crops: 800x600 sheet, 2 columns x 2 rows = 400x300 per frame (4 total frames)
@@ -70,6 +73,12 @@ export default class BootScene extends Phaser.Scene {
     this.load.audio('sfx-gather-sticks', 'assets/audio/gather-sticks.mp3');
     this.load.audio('sfx-gather-water', 'assets/audio/gather-water.mp3');
     this.load.audio('sfx-worker-acknowledge', 'assets/audio/worker-on_it.mp3');
+    this.load.audio('sfx-arrow', 'assets/audio/arrow.mp3');
+    this.load.audio('sfx-attack', 'assets/audio/attack.mp3');
+    this.load.audio('sfx-sword', 'assets/audio/sword.mp3');
+    this.load.audio('sfx-flying', 'assets/audio/flying.mp3');
+    this.load.audio('sfx-spy', 'assets/audio/spy.mp3');
+    this.load.audio('sfx-air-attack', 'assets/audio/air_attack.mp3');
 
     // Load UI assets
     this.load.image('ui-top-bar', 'assets/ui/top_bar.png');
