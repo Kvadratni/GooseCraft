@@ -1,4 +1,4 @@
-![Uploading image.png…]()
+<img width="1685" height="650" alt="image" src="https://github.com/user-attachments/assets/7d8bd696-801b-455e-adf2-90bc71074a77" />
 
 
 A browser-based 2D isometric RTS (Real-Time Strategy) game built with Phaser 3.
