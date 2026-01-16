@@ -15,7 +15,7 @@ import Goose from '../entities/Goose.js';
 import Guard from '../entities/Guard.js';
 import Scout from '../entities/Scout.js';
 import Spy from '../entities/Spy.js';
-import Honker from '../entities/Honker.js';
+import Maverick from '../entities/Maverick.js';
 import ResourceNode from '../entities/ResourceNode.js';
 import Coop from '../buildings/Coop.js';
 
@@ -60,7 +60,7 @@ export default class GameScene extends Phaser.Scene {
     this.resourceNodes = [];
 
     // Expose unit classes for debug console commands
-    this.unitClasses = { Goose, Guard, Scout, Spy, Honker };
+    this.unitClasses = { Goose, Guard, Scout, Spy, Maverick };
 
     // Store base spawn location
     this.baseSpawnGrid = null;

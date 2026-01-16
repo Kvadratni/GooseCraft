@@ -47,7 +47,7 @@ export default class CombatUnit extends Unit {
   updateAttacking(delta) {
     // Check if target still exists
     if (!this.targetEnemy || !this.targetEnemy.active) {
-      console.log(`${this.unitType}: Target destroyed, finding new target`);
+      if (window.gcVerbose) console.log(`${this.unitType}: Target destroyed, finding new target`);
       this.targetEnemy = null;
       this.findNewTarget();
       return;
@@ -61,7 +61,7 @@ export default class CombatUnit extends Unit {
 
     // If target out of chase range, give up
     if (distance > this.chaseRange) {
-      console.log(`${this.unitType}: Target out of chase range, going idle`);
+      if (window.gcVerbose) console.log(`${this.unitType}: Target out of chase range, going idle`);
       this.targetEnemy = null;
       this.setState(UNIT_STATES.IDLE);
       return;
@@ -110,7 +110,7 @@ export default class CombatUnit extends Unit {
   attackTarget(target) {
     if (!target || !target.active) return;
 
-    console.log(`${this.unitType}: Attacking ${target.unitType || target.buildingName} for ${this.damage} damage`);
+    if (window.gcVerbose) console.log(`${this.unitType}: Attacking ${target.unitType || target.buildingName} for ${this.damage} damage`);
 
     // Deal damage
     target.takeDamage(this.damage);
@@ -138,7 +138,7 @@ export default class CombatUnit extends Unit {
     if (enemy) {
       const distance = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
       if (distance <= this.engagementRange) {
-        console.log(`${this.unitType}: Enemy detected at ${Math.round(distance)}px, engaging!`);
+        if (window.gcVerbose) console.log(`${this.unitType}: Enemy detected at ${Math.round(distance)}px, engaging!`);
         this.engageTarget(enemy);
       }
     }
@@ -203,7 +203,7 @@ export default class CombatUnit extends Unit {
   engageTarget(target) {
     this.targetEnemy = target;
     this.setState(UNIT_STATES.ATTACKING);
-    console.log(`${this.unitType}: Engaging ${target.unitType || target.buildingName}`);
+    if (window.gcVerbose) console.log(`${this.unitType}: Engaging ${target.unitType || target.buildingName}`);
   }
 
   /**

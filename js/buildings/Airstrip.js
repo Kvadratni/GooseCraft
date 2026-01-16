@@ -22,7 +22,7 @@ export default class Airstrip extends Building {
 
     // Production capability
     this.productionQueue = new ProductionQueue(this, scene);
-    this.canProduce = ['air-unit']; // Airstrip produces air units
+    this.canProduce = ['maverick']; // Airstrip produces Mavericks
   }
 
   /**
@@ -41,6 +41,6 @@ export default class Airstrip extends Building {
    * Override construction complete
    */
   onConstructionComplete() {
-    console.log('Airstrip: Aerial operations facility operational - can train Air Units');
+    console.log('Airstrip: Aerial operations facility operational - can train Mavericks');
   }
 }

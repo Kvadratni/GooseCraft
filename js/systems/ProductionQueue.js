@@ -4,8 +4,7 @@ import Goose from '../entities/Goose.js';
 import Guard from '../entities/Guard.js';
 import Scout from '../entities/Scout.js';
 import Spy from '../entities/Spy.js';
-import Honker from '../entities/Honker.js';
-import AirUnit from '../entities/AirUnit.js';
+import Maverick from '../entities/Maverick.js';
 import { UNIT_COSTS, UNIT_TRAIN_TIME } from '../utils/Constants.js';
 
 export default class ProductionQueue {
@@ -198,11 +197,8 @@ export default class ProductionQueue {
       case 'spy':
         unit = new Spy(this.scene, spawnX, spawnY, faction);
         break;
-      case 'honker':
-        unit = new Honker(this.scene, spawnX, spawnY, faction);
-        break;
-      case 'air-unit':
-        unit = new AirUnit(this.scene, spawnX, spawnY, faction);
+      case 'maverick':
+        unit = new Maverick(this.scene, spawnX, spawnY, faction);
         break;
       default:
         console.error(`ProductionQueue: Unknown unit type for spawning: ${unitType}`);

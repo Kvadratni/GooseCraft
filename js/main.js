@@ -82,7 +82,7 @@ window.gc = {
       y = gs.cameras.main.scrollY + gs.cameras.main.height / 2;
     }
 
-    const validTypes = ['worker', 'guard', 'scout', 'spy', 'honker'];
+    const validTypes = ['worker', 'guard', 'scout', 'spy', 'maverick'];
     if (!validTypes.includes(unitType?.toLowerCase())) {
       console.log(`Invalid unit type. Valid types: ${validTypes.join(', ')}`);
       return;
@@ -110,9 +110,9 @@ window.gc = {
         const Spy = gs.unitClasses?.Spy;
         if (Spy) unit = new Spy(gs, x, y, faction);
         break;
-      case 'honker':
-        const Honker = gs.unitClasses?.Honker;
-        if (Honker) unit = new Honker(gs, x, y, faction);
+      case 'maverick':
+        const Maverick = gs.unitClasses?.Maverick;
+        if (Maverick) unit = new Maverick(gs, x, y, faction);
         break;
     }
 
@@ -135,7 +135,7 @@ window.gc = {
       y = gs.cameras.main.scrollY + gs.cameras.main.height / 2;
     }
 
-    const validTypes = ['worker', 'guard', 'scout', 'spy', 'honker'];
+    const validTypes = ['worker', 'guard', 'scout', 'spy', 'maverick'];
     if (!validTypes.includes(unitType?.toLowerCase())) {
       console.log(`Invalid unit type. Valid types: ${validTypes.join(', ')}`);
       return;
@@ -162,9 +162,9 @@ window.gc = {
         const Spy = gs.unitClasses?.Spy;
         if (Spy) unit = new Spy(gs, x, y, faction);
         break;
-      case 'honker':
-        const Honker = gs.unitClasses?.Honker;
-        if (Honker) unit = new Honker(gs, x, y, faction);
+      case 'maverick':
+        const Maverick = gs.unitClasses?.Maverick;
+        if (Maverick) unit = new Maverick(gs, x, y, faction);
         break;
     }
 
@@ -197,6 +197,23 @@ window.gc = {
     }
   },
 
+  // Toggle fog of war
+  toggleFog: () => {
+    const gs = game.scene.getScene('GameScene');
+    if (gs?.fogOfWar) {
+      return gs.fogOfWar.toggle();
+    }
+    console.log('FogOfWar not available');
+    return null;
+  },
+
+  // Toggle verbose logging
+  toggleLogs: () => {
+    window.gcVerbose = !window.gcVerbose;
+    console.log(`Verbose logging: ${window.gcVerbose ? 'ON' : 'OFF'}`);
+    return window.gcVerbose;
+  },
+
   // Show help
   help: () => {
     console.log(`
@@ -213,18 +230,23 @@ Resources:
 Units:
   gc.spawn(type, x, y)      - Spawn player unit at position
   gc.spawnEnemy(type, x, y) - Spawn enemy unit
-  Valid types: worker, guard, scout, spy, honker
+  Valid types: worker, guard, scout, spy, maverick
   (omit x,y to spawn at camera center)
 
 Other:
   gc.unlockAll()    - Unlock all buildings
   gc.killEnemies()  - Kill all enemy units
+  gc.toggleFog()    - Toggle fog of war on/off
+  gc.toggleLogs()   - Toggle verbose logging on/off
   gc.game()         - Get GameScene reference
   gc.ui()           - Get UIScene reference
 ─────────────────────────────────────────
     `);
   }
 };
+
+// Initialize verbose logging flag (off by default)
+window.gcVerbose = false;
 
 console.log('GooseCraft initialized!');
 console.log('Debug commands available: type gc.help() in console');

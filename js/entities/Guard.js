@@ -14,7 +14,7 @@ export default class Guard extends CombatUnit {
       attackRange: stats.attackRange,
       attackSpeed: stats.attackSpeed,
       engagementRange: stats.engagementRange,
-      spriteKey: 'soldier',
+      spriteKey: 'warrior',
       size: 32
     };
 

@@ -14,7 +14,7 @@ export default class Scout extends CombatUnit {
       attackRange: stats.attackRange,
       attackSpeed: stats.attackSpeed,
       engagementRange: stats.engagementRange,
-      spriteKey: 'civilian',
+      spriteKey: 'archer',
       size: 32
     };
 

@@ -48,9 +48,9 @@ export default class AIManager {
    * Spawn AI base in opposite corner from player
    */
   spawnAIBase() {
-    // AI base location - northeast corner (opposite player's southwest)
+    // AI base location - southeast corner (diagonally opposite player's northwest at 0.3, 0.3)
     const aiBaseGridX = Math.floor(MAP.GRID_WIDTH * 0.7);
-    const aiBaseGridY = Math.floor(MAP.GRID_HEIGHT * 0.3);
+    const aiBaseGridY = Math.floor(MAP.GRID_HEIGHT * 0.7);
 
     // Find walkable tile
     let spawnGridX = aiBaseGridX;

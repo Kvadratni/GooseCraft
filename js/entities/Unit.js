@@ -218,14 +218,14 @@ export default class Unit extends Phaser.GameObjects.Container {
    */
   updateMoving(delta) {
     if (!this.currentPath || this.currentPath.length === 0) {
-      console.log('Unit: No path, going idle');
+      if (window.gcVerbose) console.log('Unit: No path, going idle');
       this.setState(UNIT_STATES.IDLE);
       return;
     }
 
     // Check if we've finished the path
     if (this.currentPathIndex >= this.currentPath.length) {
-      console.log('Unit: Path complete, going idle');
+      if (window.gcVerbose) console.log('Unit: Path complete, going idle');
       this.stuckRecoveryAttempts = 0; // Reset on successful path completion
       this.setState(UNIT_STATES.IDLE);
       return;
@@ -259,7 +259,7 @@ export default class Unit extends Phaser.GameObjects.Container {
 
         // Use the original final destination if available, otherwise use the last path waypoint
         if (this.finalDestination) {
-          console.log(`Unit: Recalculating path to original destination (${Math.round(this.finalDestination.x)}, ${Math.round(this.finalDestination.y)})`);
+          if (window.gcVerbose) console.log(`Unit: Recalculating path to original destination (${Math.round(this.finalDestination.x)}, ${Math.round(this.finalDestination.y)})`);
 
           // Clear current path and request new one to ORIGINAL destination
           this.currentPath = [];
@@ -271,7 +271,7 @@ export default class Unit extends Phaser.GameObjects.Container {
           // Fallback to last waypoint
           const targetWaypoint = this.currentPath[this.currentPath.length - 1];
           if (targetWaypoint) {
-            console.log(`Unit: Recalculating path to waypoint (${targetWaypoint.x}, ${targetWaypoint.y})`);
+            if (window.gcVerbose) console.log(`Unit: Recalculating path to waypoint (${targetWaypoint.x}, ${targetWaypoint.y})`);
             this.currentPath = [];
             this.currentPathIndex = 0;
             const targetWorld = this.scene.isometricMap.getWorldPosCenter(targetWaypoint.x, targetWaypoint.y);
@@ -300,26 +300,26 @@ export default class Unit extends Phaser.GameObjects.Container {
     // Using 20 pixels threshold - works well with isometric tiles (64x32)
     if (distance < 20) {
       this.currentPathIndex++;
-      console.log(`Unit: Reached waypoint ${this.currentPathIndex}/${this.currentPath.length}`);
+      if (window.gcVerbose) console.log(`Unit: Reached waypoint ${this.currentPathIndex}/${this.currentPath.length}`);
 
       if (this.currentPathIndex >= this.currentPath.length) {
         // Reached final destination
-        console.log(`Unit: Reached final destination`);
+        if (window.gcVerbose) console.log(`Unit: Reached final destination`);
 
         // Reset stuck detection
         this.stuckTimer = 0;
 
         // Check if this is a goose with pending operations
         if (this.pendingGatherStart && this.targetResource) {
-          console.log(`Unit: Transitioning to GATHERING state`);
+          if (window.gcVerbose) console.log(`Unit: Transitioning to GATHERING state`);
           this.setState(UNIT_STATES.GATHERING);
           this.pendingGatherStart = false;
         } else if (this.pendingReturnToBase) {
-          console.log(`Unit: Transitioning to RETURNING state`);
+          if (window.gcVerbose) console.log(`Unit: Transitioning to RETURNING state`);
           this.setState(UNIT_STATES.RETURNING);
           this.pendingReturnToBase = false;
         } else if (this.pendingConstruction && this.targetBuilding) {
-          console.log(`Unit: Transitioning to CONSTRUCTING state`);
+          if (window.gcVerbose) console.log(`Unit: Transitioning to CONSTRUCTING state`);
           this.setState(UNIT_STATES.CONSTRUCTING);
           this.pendingConstruction = false;
         } else {
@@ -369,9 +369,11 @@ export default class Unit extends Phaser.GameObjects.Container {
    */
   setState(newState) {
     if (this.state !== newState) {
-      const debugInfo = newState === UNIT_STATES.MOVING ?
-        ` (path length: ${this.currentPath?.length}, index: ${this.currentPathIndex})` : '';
-      console.log(`Unit ${this.unitType}: ${this.state} -> ${newState}${debugInfo}`);
+      if (window.gcVerbose) {
+        const debugInfo = newState === UNIT_STATES.MOVING ?
+          ` (path length: ${this.currentPath?.length}, index: ${this.currentPathIndex})` : '';
+        console.log(`Unit ${this.unitType}: ${this.state} -> ${newState}${debugInfo}`);
+      }
       this.state = newState;
 
       // State entry actions
@@ -405,7 +407,7 @@ export default class Unit extends Phaser.GameObjects.Container {
     const startGrid = worldToGridInt(this.x, this.y);
     const endGrid = worldToGridInt(worldX, worldY);
 
-    console.log(`Unit moving from grid (${startGrid.x}, ${startGrid.y}) to (${endGrid.x}, ${endGrid.y})`);
+    if (window.gcVerbose) console.log(`Unit moving from grid (${startGrid.x}, ${startGrid.y}) to (${endGrid.x}, ${endGrid.y})`);
 
     // Request path from pathfinding manager
     this.scene.pathfindingManager.findPath(
@@ -425,26 +427,26 @@ export default class Unit extends Phaser.GameObjects.Container {
       return;
     }
 
-    console.log(`Unit: Path found with ${path.length} nodes from (${path[0].x}, ${path[0].y}) to (${path[path.length-1].x}, ${path[path.length-1].y})`);
+    if (window.gcVerbose) console.log(`Unit: Path found with ${path.length} nodes from (${path[0].x}, ${path[0].y}) to (${path[path.length-1].x}, ${path[path.length-1].y})`);
 
     // Special case: path has only one node (already at destination)
     if (path.length === 1) {
-      console.log('Unit: Already at destination');
+      if (window.gcVerbose) console.log('Unit: Already at destination');
       this.currentPath = [];
       this.currentPathIndex = 0;
       this.targetNode = null;
 
       // Check if this is a goose with pending operations
       if (this.pendingGatherStart && this.targetResource) {
-        console.log(`Unit: Transitioning to GATHERING state (already at destination)`);
+        if (window.gcVerbose) console.log(`Unit: Transitioning to GATHERING state (already at destination)`);
         this.setState(UNIT_STATES.GATHERING);
         this.pendingGatherStart = false;
       } else if (this.pendingReturnToBase) {
-        console.log(`Unit: Transitioning to RETURNING state (already at destination)`);
+        if (window.gcVerbose) console.log(`Unit: Transitioning to RETURNING state (already at destination)`);
         this.setState(UNIT_STATES.RETURNING);
         this.pendingReturnToBase = false;
       } else if (this.pendingConstruction && this.targetBuilding) {
-        console.log(`Unit: Transitioning to CONSTRUCTING state (already at destination)`);
+        if (window.gcVerbose) console.log(`Unit: Transitioning to CONSTRUCTING state (already at destination)`);
         this.setState(UNIT_STATES.CONSTRUCTING);
         this.pendingConstruction = false;
       } else {

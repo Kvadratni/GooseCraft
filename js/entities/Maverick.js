@@ -1,25 +1,25 @@
-// Honker Unit - Heavy/Artillery combat unit
+// Maverick - Fast aerial combat unit with ranged attacks
 
 import CombatUnit from './CombatUnit.js';
 import { UNIT, UNIT_STATS } from '../utils/Constants.js';
 
-export default class Honker extends CombatUnit {
+export default class Maverick extends CombatUnit {
   constructor(scene, x, y, faction) {
-    const stats = UNIT_STATS.HONKER;
+    const stats = UNIT_STATS.MAVERICK;
     const config = {
-      type: 'honker',
+      type: 'maverick',
       health: stats.health,
-      speed: UNIT.SPEED_HONKER || stats.speed,
+      speed: stats.speed,
       damage: stats.damage,
       attackRange: stats.attackRange,
       attackSpeed: stats.attackSpeed,
       engagementRange: stats.engagementRange,
-      spriteKey: 'tank',
-      size: 40
+      spriteKey: 'air-unit',
+      size: 32
     };
 
     super(scene, x, y, config, faction);
 
-    console.log('Honker unit created - Heavy artillery');
+    console.log('Maverick unit created - Fast aerial striker');
   }
 }

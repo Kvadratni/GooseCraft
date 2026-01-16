@@ -157,17 +157,17 @@ export default class Goose extends Unit {
         if (amountGathered > 0) {
           this.addToInventory(resourceType, amountGathered);
 
-          // Only log and play sounds for player units
-          if (this.faction === FACTIONS.PLAYER) {
+          // Only log for player units with verbose logging
+          if (this.faction === FACTIONS.PLAYER && window.gcVerbose) {
             console.log(`Goose: Gathered ${amountGathered} ${resourceType}, inventory: food=${this.inventory.food} water=${this.inventory.water} sticks=${this.inventory.sticks} tools=${this.inventory.tools}`);
+          }
 
-            // Play gathering sound effect
-            if (this.scene.soundManager) {
-              if (resourceType === 'sticks') {
-                this.scene.soundManager.playSFX('sfx-gather-sticks');
-              } else if (resourceType === 'water') {
-                this.scene.soundManager.playSFX('sfx-gather-water');
-              }
+          // Play gathering sound effect for player units
+          if (this.faction === FACTIONS.PLAYER && this.scene.soundManager) {
+            if (resourceType === 'sticks') {
+              this.scene.soundManager.playSFX('sfx-gather-sticks');
+            } else if (resourceType === 'water') {
+              this.scene.soundManager.playSFX('sfx-gather-water');
             }
           }
         }
@@ -176,23 +176,19 @@ export default class Goose extends Unit {
 
         // Check if inventory is full or should continue
         if (this.isInventoryFull()) {
-          if (this.faction === FACTIONS.PLAYER) {
-            console.log(`Goose: Inventory full (${this.inventoryMax}), returning to base`);
-          }
+          if (window.gcVerbose) console.log(`Goose: Inventory full (${this.inventoryMax}), returning to base`);
           this.returnToBase();
         } else if (!this.targetResource.hasResources()) {
-          if (this.faction === FACTIONS.PLAYER) {
-            console.log(`Goose: Resource depleted after gathering`);
-          }
+          if (window.gcVerbose) console.log(`Goose: Resource depleted after gathering`);
           this.findAndGatherNearestResource(resourceType);
-        } else if (this.faction === FACTIONS.PLAYER) {
+        } else if (window.gcVerbose) {
           console.log(`Goose: Continue gathering (${this.inventory.food + this.inventory.water + this.inventory.sticks + this.inventory.tools}/${this.inventoryMax})`);
         }
         // Otherwise continue gathering
       }
     } else {
       // Not at resource yet - shouldn't happen in GATHERING state
-      if (this.faction === FACTIONS.PLAYER) {
+      if (window.gcVerbose) {
         console.log(`Goose: In GATHERING state but too far from resource (distance: ${Math.round(distance)}), moving to resource`);
       }
       this.gatherFrom(this.targetResource);

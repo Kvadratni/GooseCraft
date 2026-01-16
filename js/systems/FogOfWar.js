@@ -7,6 +7,9 @@ export default class FogOfWar {
   constructor(scene) {
     this.scene = scene;
 
+    // Enabled state (can be toggled for debugging)
+    this.enabled = true;
+
     // Fog state for each tile: 0=unexplored, 1=explored, 2=visible
     this.fogState = [];
     for (let y = 0; y < MAP.GRID_HEIGHT; y++) {
@@ -51,9 +54,48 @@ export default class FogOfWar {
   }
 
   /**
+   * Toggle fog of war on/off
+   */
+  toggle() {
+    this.enabled = !this.enabled;
+
+    if (!this.enabled) {
+      // When disabled, clear fog graphics and show all entities
+      this.fogGraphics.clear();
+      this.showAllEntities();
+    }
+
+    console.log(`FogOfWar: ${this.enabled ? 'Enabled' : 'Disabled'}`);
+    return this.enabled;
+  }
+
+  /**
+   * Show all entities (when fog is disabled)
+   */
+  showAllEntities() {
+    this.scene.units.forEach(unit => {
+      if (unit.active) {
+        unit.setVisible(true);
+        if (unit.statusText) unit.statusText.setVisible(true);
+      }
+    });
+
+    this.scene.buildings.forEach(building => {
+      if (building.active) building.setVisible(true);
+    });
+
+    this.scene.resourceNodes.forEach(node => {
+      if (node.active) node.setVisible(true);
+    });
+  }
+
+  /**
    * Update fog of war (call every frame or periodically)
    */
   update() {
+    // Skip if disabled
+    if (!this.enabled) return;
+
     // Reset all explored tiles to "explored but not visible"
     for (let y = 0; y < MAP.GRID_HEIGHT; y++) {
       for (let x = 0; x < MAP.GRID_WIDTH; x++) {

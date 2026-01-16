@@ -354,8 +354,7 @@ export const UNIT_COSTS = {
   GUARD: { food: 75, water: 25, sticks: 50, stone: 0, tools: 2 },
   SCOUT: { food: 40, water: 30, sticks: 20, stone: 0, tools: 1 },
   SPY: { food: 60, water: 40, sticks: 30, stone: 0, tools: 3 },
-  HONKER: { food: 150, water: 50, sticks: 100, stone: 50, tools: 5 },
-  AIR_UNIT: { food: 100, water: 50, sticks: 80, stone: 100, tools: 8 }
+  MAVERICK: { food: 100, water: 50, sticks: 80, stone: 100, tools: 8 }
 };
 
 // Tool Production (Factory converts sticks to tools)
@@ -371,8 +370,7 @@ export const UNIT_TRAIN_TIME = {
   GUARD: 8000,    // 8 seconds
   SCOUT: 6000,    // 6 seconds
   SPY: 10000,     // 10 seconds
-  HONKER: 12000,  // 12 seconds
-  AIR_UNIT: 10000 // 10 seconds
+  MAVERICK: 10000 // 10 seconds
 };
 
 // Unit Combat Stats
@@ -418,23 +416,14 @@ export const UNIT_STATS = {
     stealCooldown: 45000,       // 45 seconds between steals
     description: 'Saboteur - disables buildings, steals resources'
   },
-  HONKER: {
-    health: 200,
-    speed: 80,
-    damage: 25,
-    attackRange: 150,       // Artillery
-    attackSpeed: 2500,
-    engagementRange: 250,
-    description: 'Artillery - slow, heavy damage'
-  },
-  AIR_UNIT: {
+  MAVERICK: {
     health: 100,
     speed: 180,
     damage: 12,
     attackRange: 130,
     attackSpeed: 1000,
     engagementRange: 200,
-    description: 'Air Strike - fast, mobile attacker'
+    description: 'Maverick - fast aerial striker'
   }
 };
 

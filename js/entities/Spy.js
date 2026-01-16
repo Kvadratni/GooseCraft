@@ -14,7 +14,7 @@ export default class Spy extends CombatUnit {
       attackRange: stats.attackRange,
       attackSpeed: stats.attackSpeed,
       engagementRange: stats.engagementRange,
-      spriteKey: 'civilian',
+      spriteKey: 'spy',
       size: 28
     };
 
