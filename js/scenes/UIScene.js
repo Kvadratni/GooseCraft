@@ -1510,9 +1510,19 @@ export default class UIScene extends Phaser.Scene {
    * Show building panel with dynamic content based on building type
    */
   showBuildingPanel(building) {
+    // Hide range indicator from previous selection
+    if (this.selectedBuilding && this.selectedBuilding.hideRangeIndicator) {
+      this.selectedBuilding.hideRangeIndicator();
+    }
+
     this.selectedBuilding = building;
     this.selectedUnit = null; // Clear unit selection when showing building panel
     this.clearDynamicButtons();
+
+    // Show range indicator for watchtower
+    if (building.showRangeIndicator) {
+      building.showRangeIndicator();
+    }
 
     // Reset scroll position
     this.scrollOffset = 0;
@@ -2158,6 +2168,10 @@ export default class UIScene extends Phaser.Scene {
    * Hide building panel
    */
   hideBuildingPanel() {
+    // Hide range indicator when deselecting
+    if (this.selectedBuilding && this.selectedBuilding.hideRangeIndicator) {
+      this.selectedBuilding.hideRangeIndicator();
+    }
     this.selectedBuilding = null;
     this.clearDynamicButtons();
     this.buildingPanelContainer.setVisible(false);

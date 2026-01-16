@@ -57,6 +57,12 @@ export default class Watchtower extends Building {
     this.lastAlarmTime = 0;
     this.alarmCooldown = 5000; // 5 seconds between alarms
 
+    // Range indicator (shown when selected)
+    this.rangeIndicator = scene.add.graphics();
+    this.rangeIndicator.setDepth(1); // Below units but above ground
+    this.updateRangeIndicator();
+    this.rangeIndicator.setVisible(false);
+
     console.log(`Watchtower: Created at (${x}, ${y})`);
   }
 
@@ -299,6 +305,7 @@ export default class Watchtower extends Building {
       case 'EXTENDED_RANGE':
         this.attackRange = Math.floor(this.baseAttackRange * 1.5);
         this.visionRange = Math.floor(this.baseVisionRange * 1.5);
+        this.updateRangeIndicator(); // Refresh the range circle
         console.log(`Watchtower: Extended Range - attack: ${this.attackRange}, vision: ${this.visionRange}`);
         break;
       case 'ALARM_BELL':
@@ -324,5 +331,54 @@ export default class Watchtower extends Building {
   onConstructionComplete() {
     console.log('Watchtower: Defense tower operational - guarding the perimeter');
     this.applyResearchBonuses();
+  }
+
+  /**
+   * Update range indicator graphics
+   */
+  updateRangeIndicator() {
+    if (!this.rangeIndicator) return;
+
+    this.rangeIndicator.clear();
+
+    // Draw range circle with faction color
+    const color = this.faction === FACTIONS.PLAYER ? 0x4a90d9 : 0xd94a4a;
+    this.rangeIndicator.lineStyle(2, color, 0.6);
+    this.rangeIndicator.fillStyle(color, 0.1);
+    this.rangeIndicator.beginPath();
+    this.rangeIndicator.arc(this.x, this.y, this.attackRange, 0, Math.PI * 2);
+    this.rangeIndicator.closePath();
+    this.rangeIndicator.fillPath();
+    this.rangeIndicator.strokePath();
+  }
+
+  /**
+   * Show range indicator (called when selected)
+   */
+  showRangeIndicator() {
+    if (this.rangeIndicator) {
+      this.updateRangeIndicator();
+      this.rangeIndicator.setVisible(true);
+    }
+  }
+
+  /**
+   * Hide range indicator (called when deselected)
+   */
+  hideRangeIndicator() {
+    if (this.rangeIndicator) {
+      this.rangeIndicator.setVisible(false);
+    }
+  }
+
+  /**
+   * Clean up when destroyed
+   */
+  destroy() {
+    if (this.rangeIndicator) {
+      this.rangeIndicator.destroy();
+      this.rangeIndicator = null;
+    }
+    super.destroy();
   }
 }
