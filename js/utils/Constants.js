@@ -350,11 +350,11 @@ export const FACTION_COLORS = {
 
 // Unit Costs (resources required to train)
 export const UNIT_COSTS = {
-  WORKER: { food: 50, water: 0, sticks: 0, stone: 0, tools: 0 },
-  GUARD: { food: 75, water: 25, sticks: 50, stone: 0, tools: 2 },
-  SCOUT: { food: 40, water: 30, sticks: 20, stone: 0, tools: 1 },
-  SPY: { food: 60, water: 40, sticks: 30, stone: 0, tools: 3 },
-  MAVERICK: { food: 100, water: 50, sticks: 80, stone: 100, tools: 8 }
+  WORKER: { food: 50, water: 0, sticks: 0, tools: 0 },
+  GUARD: { food: 75, water: 25, sticks: 50, tools: 2 },
+  SCOUT: { food: 40, water: 30, sticks: 20, tools: 1 },
+  SPY: { food: 60, water: 40, sticks: 30, tools: 3 },
+  MAVERICK: { food: 100, water: 50, sticks: 80, tools: 8 }
 };
 
 // Tool Production (Factory converts sticks to tools)

@@ -85,8 +85,49 @@ export default class Goose extends CombatUnit {
       this.updateConstructing(delta);
     }
 
+    // Check if carrying resources and near any friendly building - deposit automatically
+    const totalResources = this.inventory.food + this.inventory.water + this.inventory.sticks + this.inventory.tools;
+    if (totalResources > 0) {
+      const nearbyBuilding = this.findNearbyDepositBuilding();
+      if (nearbyBuilding) {
+        console.log(`Goose: Near building ${nearbyBuilding.buildingName}, depositing ${totalResources} resources`);
+        this.pendingReturnToBase = false;
+        this.depositResources();
+        // If was returning to base, continue gathering
+        if (this.state === UNIT_STATES.RETURNING || this.state === UNIT_STATES.MOVING) {
+          if (this.targetResource && this.targetResource.hasResources()) {
+            this.gatherFrom(this.targetResource);
+          } else if (this.targetResource) {
+            this.findAndGatherNearestResource(this.targetResource.getResourceType());
+          } else {
+            this.setState(UNIT_STATES.IDLE);
+          }
+        }
+      }
+    }
+
     // Update status text
     this.updateStatusDisplay();
+  }
+
+  /**
+   * Find a nearby friendly building to deposit resources
+   */
+  findNearbyDepositBuilding() {
+    const depositRadius = 120; // Realistic deposit radius
+    const buildings = this.scene.buildings;
+
+    for (const building of buildings) {
+      if (!building.active) continue;
+      if (building.faction !== this.faction) continue;
+      if (building.state !== 'OPERATIONAL') continue;
+
+      const distance = Phaser.Math.Distance.Between(this.x, this.y, building.x, building.y);
+      if (distance < depositRadius) {
+        return building;
+      }
+    }
+    return null;
   }
 
   /**
@@ -229,7 +270,7 @@ export default class Goose extends CombatUnit {
       this.x, this.y,
       this.homeBase.x, this.homeBase.y
     );
-    const depositRadius = 300; // Large radius for easy drop-off
+    const depositRadius = 120; // Deposit radius
 
     // If within deposit radius, deposit
     if (distance < depositRadius) {
@@ -371,7 +412,7 @@ export default class Goose extends CombatUnit {
     }
 
     const distance = Phaser.Math.Distance.Between(this.x, this.y, this.homeBase.x, this.homeBase.y);
-    const depositRadius = 300; // Large radius for easy drop-off
+    const depositRadius = 120; // Deposit radius
 
     if (distance < depositRadius) {
       // Within deposit radius, deposit immediately without pathfinding
@@ -388,38 +429,18 @@ export default class Goose extends CombatUnit {
       }
     } else {
       // Too far, move closer to base
-      // Set state to RETURNING first, then start moving
       this.pendingReturnToBase = true;
 
-      // Find a walkable tile near the base perimeter
+      // Find a walkable tile near the base - auto-deposit will trigger when we're close enough
       const adjacentTile = this.findAdjacentWalkableTile(this.homeBase.x, this.homeBase.y);
 
       if (adjacentTile) {
-        console.log(`Goose: Returning to base (distance: ${Math.round(distance)}px), moving to (${Math.round(adjacentTile.x)}, ${Math.round(adjacentTile.y)})`);
+        console.log(`Goose: Returning to base, moving to walkable tile (${Math.round(adjacentTile.x)}, ${Math.round(adjacentTile.y)})`);
         this.moveTo(adjacentTile.x, adjacentTile.y);
-        // State will be set to MOVING by moveTo, but will transition to RETURNING when arrived
       } else {
-        // Can't find walkable tile - be more forgiving, deposit if within reasonable range
-        // Use 350px or 2x building size, whichever is larger
-        const forgivingDistance = Math.max(350, this.homeBase.size * 2);
-        if (distance < forgivingDistance) {
-          console.log(`Goose: Can't find path but close enough (${Math.round(distance)}px < ${forgivingDistance}px), depositing anyway`);
-          this.depositResources();
-
-          // Continue gathering if resource available
-          if (this.targetResource && this.targetResource.hasResources()) {
-            this.gatherFrom(this.targetResource);
-          } else if (this.targetResource) {
-            this.findAndGatherNearestResource(this.targetResource.getResourceType());
-          } else {
-            this.setState(UNIT_STATES.IDLE);
-          }
-        } else {
-          // Really far away - try moving toward base anyway, deposit will happen when closer
-          console.warn(`Goose: Far from base (${Math.round(distance)}px), moving toward base center`);
-          this.pendingReturnToBase = true;
-          this.moveTo(this.homeBase.x, this.homeBase.y);
-        }
+        // No walkable tile found, just move toward base - auto-deposit will handle it
+        console.log(`Goose: No walkable tile near base, moving toward base center`);
+        this.moveTo(this.homeBase.x, this.homeBase.y);
       }
     }
   }
@@ -477,14 +498,17 @@ export default class Goose extends CombatUnit {
   }
 
   /**
-   * Add resource to inventory
+   * Add resource to inventory (capped at max capacity)
    */
   addToInventory(resourceType, amount) {
     if (this.inventory.hasOwnProperty(resourceType)) {
-      this.inventory[resourceType] += amount;
-      return true;
+      const currentTotal = this.inventory.food + this.inventory.water + this.inventory.sticks + this.inventory.tools;
+      const spaceLeft = this.inventoryMax - currentTotal;
+      const actualAmount = Math.min(amount, spaceLeft);
+      this.inventory[resourceType] += actualAmount;
+      return actualAmount;
     }
-    return false;
+    return 0;
   }
 
   /**
@@ -638,7 +662,7 @@ export default class Goose extends CombatUnit {
   }
 
   /**
-   * Stop gathering and return to idle
+   * Stop gathering and return to idle (keeps resources in inventory)
    */
   stopGathering() {
     console.log('Goose: Stopping gathering');
@@ -653,12 +677,7 @@ export default class Goose extends CombatUnit {
     this.pendingGatherStart = false;
     this.pendingReturnToBase = false;
 
-    // Clear inventory if carrying resources
-    const totalResources = this.inventory.food + this.inventory.water + this.inventory.sticks + this.inventory.tools;
-    if (totalResources > 0) {
-      console.log('Goose: Depositing resources before stopping');
-      this.depositResources();
-    }
+    // Keep resources in inventory - will deposit when near a building
 
     // Go to idle state
     this.setState(UNIT_STATES.IDLE);
@@ -679,13 +698,7 @@ export default class Goose extends CombatUnit {
     if (newState === UNIT_STATES.IDLE) {
       this.pendingGatherStart = false;
       this.pendingReturnToBase = false;
-
-      // If we have resources in inventory and were returning, try to deposit anyway
-      const totalResources = this.inventory.food + this.inventory.water + this.inventory.sticks + this.inventory.tools;
-      if (totalResources > 0 && this.state === UNIT_STATES.RETURNING) {
-        console.log('Goose: Got stuck while returning with resources, depositing anyway');
-        this.depositResources();
-      }
+      // Keep resources in inventory - will deposit when near a building
     }
 
     super.setState(newState);
