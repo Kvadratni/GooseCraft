@@ -1,6 +1,6 @@
 {
   "name": "goosecraft",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "A browser-based 2D isometric RTS game built with Phaser 3",
   "main": "index.html",
