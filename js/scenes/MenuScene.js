@@ -201,11 +201,9 @@ export default class MenuScene extends Phaser.Scene {
         this.soundManager = null;
       }
 
-      // Stop this scene and start GameScene
+      // Stop this scene and start LoadingScene
       this.scene.stop('MenuScene');
-      this.scene.start('GameScene', config);
-      // Also start UIScene in parallel
-      this.scene.launch('UIScene');
+      this.scene.start('LoadingScene', config);
     });
   }
 
@@ -249,8 +247,8 @@ export default class MenuScene extends Phaser.Scene {
           this.soundManager = null;
         }
         this.scene.stop('MenuScene');
-        this.scene.start('GameScene');
-        this.scene.launch('UIScene');
+        // Passing the config via window var earlier, but we still need to hit LoadingScene
+        this.scene.start('LoadingScene');
       });
 
     } catch (err) {
