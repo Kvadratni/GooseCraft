@@ -19,6 +19,10 @@ export default class IsometricMap {
     this.terrainContainer = scene.add.container(0, 0);
     this.terrainContainer.setDepth(DEPTH.TERRAIN);
 
+    // Sprite pooling for camera culling
+    this.terrainPool = [];
+    this.activeTerrainTiles = new Map(); // Key: "x,y", Value: Sprite
+
     this.initialize();
   }
 
@@ -57,8 +61,8 @@ export default class IsometricMap {
       }
     }
 
-    // Render the terrain
-    this.renderTerrain();
+    // We no longer call renderTerrain() here. Sprites are dynamically 
+    // evaluated and pooled inside update() based on the camera view.
 
     console.log(`IsometricMap: Generated ${this.gridWidth}x${this.gridHeight} map`);
   }
@@ -250,76 +254,111 @@ export default class IsometricMap {
   }
 
   /**
-   * Render all terrain tiles
+   * Helper to determine texture string from terrain enum
    */
-  renderTerrain() {
-    console.log('IsometricMap: Rendering terrain...');
-
-    for (let x = 0; x < this.gridWidth; x++) {
-      for (let y = 0; y < this.gridHeight; y++) {
-        this.renderTile(x, y);
-      }
+  getTextureKeyForType(terrainType) {
+    switch (terrainType) {
+      case 'grass': return 'ground';
+      case 'dirt': return 'dirt';
+      case 'water': return 'water';
+      case 'sand': return 'sand';
+      case 'rock': return 'rock';
+      case 'snow': return 'snow';
+      case 'ice': return 'ice';
+      default: return 'ground';
     }
   }
 
   /**
-   * Render a single tile
+   * Dynamic Camera Culling: Show only tiles within the camera bounds.
+   * Recycles Sprites into a pool to maintain 60FPS on Large Maps.
    */
-  renderTile(gridX, gridY) {
-    const tile = this.tiles[gridX][gridY];
-    const worldPos = gridToWorld(gridX, gridY);
+  update(camera) {
+    if (!camera) return;
 
-    // Get texture key based on terrain type
-    let textureKey;
-    switch (tile.terrainType) {
-      case 'grass':
-        textureKey = 'ground';
-        break;
-      case 'dirt':
-        textureKey = 'dirt';
-        break;
-      case 'water':
-        textureKey = 'water';
-        break;
-      case 'sand':
-        textureKey = 'sand';
-        break;
-      case 'rock':
-        textureKey = 'rock';
-        break;
-      case 'snow':
-        textureKey = 'snow';
-        break;
-      case 'ice':
-        textureKey = 'ice';
-        break;
-      default:
-        textureKey = 'ground';
+    // Get camera bounds in world space
+    const zoom = camera.zoom || 1;
+    const camX = camera.scrollX;
+    const camY = camera.scrollY;
+    const camW = camera.width / zoom;
+    const camH = camera.height / zoom;
+
+    // Calculate the approximate center of the camera in Grid coordinates
+    const centerWorldX = camX + (camW / 2);
+    const centerWorldY = camY + (camH / 2);
+    const centerGrid = worldToGridInt(centerWorldX, centerWorldY);
+
+    // Heuristic range based on window size and tile size.
+    // TILE.WIDTH is 128, TILE.HEIGHT is 64. 
+    // We pad the viewport heavily so edges don't pop brightly on screen.
+    const rangeX = Math.ceil((camW / TILE.WIDTH) * 1.5);
+    const rangeY = Math.ceil((camH / TILE.HEIGHT_HALF) * 1.5);
+
+    const minX = Math.max(0, centerGrid.x - rangeX);
+    const maxX = Math.min(this.gridWidth - 1, centerGrid.x + rangeX);
+    const minY = Math.max(0, centerGrid.y - rangeY);
+    const maxY = Math.min(this.gridHeight - 1, centerGrid.y + rangeY);
+
+    // Keep track of which tiles are designated visible this frame
+    const visibleKeys = new Set();
+
+    // Evaluate viewport
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        const key = `${x},${y}`;
+        visibleKeys.add(key);
+
+        // If the tile isn't currently active, wake one up from the pool
+        if (!this.activeTerrainTiles.has(key)) {
+          const tile = this.tiles[x][y];
+          const worldPos = gridToWorld(x, y);
+          const textureKey = this.getTextureKeyForType(tile.terrainType);
+          let sprite;
+
+          if (this.terrainPool.length > 0) {
+            sprite = this.terrainPool.pop();
+            sprite.setTexture(textureKey);
+            sprite.setPosition(worldPos.x + TILE.WIDTH_HALF, worldPos.y + TILE.HEIGHT_HALF);
+            sprite.setVisible(true);
+            sprite.setActive(true);
+          } else {
+            // Allocate a new sprite if the pool is starved
+            sprite = this.scene.add.sprite(
+              worldPos.x + TILE.WIDTH_HALF,
+              worldPos.y + TILE.HEIGHT_HALF,
+              textureKey
+            );
+            sprite.setAngle(45);
+            const baseScale = (TILE.WIDTH * 1.45) / 1024;
+            sprite.setScale(baseScale, baseScale * 0.5);
+            sprite.setOrigin(0.5, 0.5);
+            sprite.setAlpha(0.98);
+            this.terrainContainer.add(sprite);
+          }
+
+          // Point the data model to the recycled sprite
+          tile.sprite = sprite;
+          this.activeTerrainTiles.set(key, sprite);
+        }
+      }
     }
 
-    // Create sprite for the tile
-    const sprite = this.scene.add.sprite(
-      worldPos.x + TILE.WIDTH_HALF,
-      worldPos.y + TILE.HEIGHT_HALF,
-      textureKey
-    );
+    // Culling pass: Any tile currently active but NOT in visibleKeys is off-screen.
+    // Return its Sprite to the pool.
+    for (const [key, sprite] of this.activeTerrainTiles.entries()) {
+      if (!visibleKeys.has(key)) {
+        sprite.setVisible(false);
+        sprite.setActive(false);
+        this.terrainPool.push(sprite);
+        this.activeTerrainTiles.delete(key);
 
-    // For proper 2:1 isometric ratio, rotate 45 degrees and scale Y to 0.5 of X
-    sprite.setAngle(45);
-
-    // Calculate scale for isometric diamond (2:1 ratio)
-    // The rotated tile should create a diamond that's 64 pixels wide and 32 pixels tall
-    const baseScale = (TILE.WIDTH * 1.45) / 1024; // Base scale for width
-    sprite.setScale(baseScale, baseScale * 0.5); // Y scale is half of X for 2:1 ratio
-
-    sprite.setOrigin(0.5, 0.5);
-    sprite.setAlpha(0.98); // Slightly higher alpha for better visibility
-
-    // Add to container
-    this.terrainContainer.add(sprite);
-
-    // Store reference
-    tile.sprite = sprite;
+        // Null the reference on the data model
+        const [gx, gy] = key.split(',').map(Number);
+        if (this.tiles[gx] && this.tiles[gx][gy]) {
+          this.tiles[gx][gy].sprite = null;
+        }
+      }
+    }
   }
 
   /**

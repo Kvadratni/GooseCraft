@@ -164,6 +164,11 @@ export default class GameScene extends Phaser.Scene {
     // Update camera controls
     this.updateCameraControls(delta);
 
+    // Update isometric map rendering (Camera Culling)
+    if (this.isometricMap) {
+      this.isometricMap.update(this.cameras.main);
+    }
+
     // Update selection manager (cleanup stuck selection boxes)
     if (this.selectionManager) {
       this.selectionManager.update();
