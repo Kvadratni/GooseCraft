@@ -485,8 +485,8 @@ export default class MenuScene extends Phaser.Scene {
   createNewGamePanel() {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
-    const panelWidth = 500;
-    const panelHeight = 400;
+    const panelWidth = 400;
+    const panelHeight = 460;
     const panelX = width / 2 - panelWidth / 2;
     const panelY = height / 2 - panelHeight / 2;
 
@@ -529,15 +529,15 @@ export default class MenuScene extends Phaser.Scene {
       return btn;
     };
 
-    const smallBtn = createSizeBtn(-120, 150, 'Small (100x100)', 100, 100);
-    const medBtn = createSizeBtn(0, 150, 'Medium (250x250)', 250, 250);
-    const lgBtn = createSizeBtn(130, 150, 'Large (400x400)', 400, 400);
+    const smallBtn = createSizeBtn(0, 160, 'Small (100x100)', 100, 100);
+    const medBtn = createSizeBtn(0, 230, 'Medium (250x250)', 250, 250);
+    const lgBtn = createSizeBtn(0, 300, 'Large (400x400)', 400, 400);
 
     // Default select medium
     medBtn.setBackgroundColor('#4CAF50');
 
     // Start Button
-    const startBtn = this.add.text(panelX + panelWidth / 2 - 80, panelY + panelHeight - 50, 'START', {
+    const startBtn = this.add.text(panelX + panelWidth / 2 - 80, panelY + panelHeight - 60, 'START', {
       fontSize: '24px', fill: '#ffffff', backgroundColor: '#4CAF50', padding: { x: 30, y: 15 }
     }).setOrigin(0.5).setDepth(2001).setVisible(false).setInteractive({ useHandCursor: true });
 
@@ -547,7 +547,7 @@ export default class MenuScene extends Phaser.Scene {
     });
 
     // Cancel Button
-    const cancelBtn = this.add.text(panelX + panelWidth / 2 + 80, panelY + panelHeight - 50, 'CANCEL', {
+    const cancelBtn = this.add.text(panelX + panelWidth / 2 + 80, panelY + panelHeight - 60, 'CANCEL', {
       fontSize: '24px', fill: '#ffffff', backgroundColor: '#777777', padding: { x: 20, y: 15 }
     }).setOrigin(0.5).setDepth(2001).setVisible(false).setInteractive({ useHandCursor: true });
 
