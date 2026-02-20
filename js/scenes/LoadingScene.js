@@ -45,7 +45,7 @@ export default class LoadingScene extends Phaser.Scene {
         // Assuming 'builder' sprite is loaded from SplashScene
         if (this.textures.exists('builder')) {
             this.gooseSprite = this.add.sprite(width / 2, height / 2 - 50, 'builder');
-            this.gooseSprite.setScale(3); // Make it big and obvious
+            this.gooseSprite.setScale(0.5); // Keep it normal size
 
             // Simple procedural waddle animation using a tween
             this.tweens.add({
