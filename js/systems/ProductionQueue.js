@@ -207,7 +207,20 @@ export default class ProductionQueue {
 
     // Add to game scene
     this.scene.units.push(unit);
+
+    // Track global stats for the Victory Screen
+    if (this.building.faction === 'PLAYER') {
+      const currentTotal = this.scene.registry.get('stat_units_trained') || 0;
+      this.scene.registry.set('stat_units_trained', currentTotal + 1);
+    }
+
     console.log(`ProductionQueue: Spawned ${unitType} at (${Math.round(spawnX)}, ${Math.round(spawnY)})`);
+
+    // Auto-move to rally point if one is set on the parent building
+    if (this.building.rallyPoint && unit.moveTo) {
+      unit.moveTo(this.building.rallyPoint.x, this.building.rallyPoint.y);
+      console.log(`ProductionQueue: Auto-moving ${unitType} to rally point`);
+    }
   }
 
   /**
@@ -231,13 +244,32 @@ export default class ProductionQueue {
   }
 
   /**
+   * Cancel a specific queued item (by index in queue)
+   */
+  cancelQueuedItem(index) {
+    if (index === 0 && this.currentProduction) {
+      return this.cancelProduction();
+    }
+
+    if (index > 0 && index < this.queue.length) {
+      const item = this.queue[index];
+      console.log(`ProductionQueue: Cancelled queued ${item.unitType}`);
+      // Give partial refund?
+      this.queue.splice(index, 1);
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Get queue status for UI
    */
   getQueueStatus() {
     if (!this.currentProduction) {
       return {
         isProducing: false,
-        queueLength: this.queue.length
+        queueLength: this.queue.length,
+        queue: this.queue
       };
     }
 
@@ -249,7 +281,8 @@ export default class ProductionQueue {
       currentUnit: this.currentProduction.unitType,
       progress: progressPercent,
       timeRemaining: timeRemaining,
-      queueLength: this.queue.length
+      queueLength: this.queue.length,
+      queue: this.queue
     };
   }
 }

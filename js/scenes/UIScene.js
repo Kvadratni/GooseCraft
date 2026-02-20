@@ -1132,6 +1132,49 @@ export default class UIScene extends Phaser.Scene {
     this.progressBarText.setVisible(false);
     this.scrollableContent.add(this.progressBarText);
 
+    // Queue UI container (in scrollable area)
+    this.queueContainer = this.add.container(0, 0);
+    this.queueContainer.setVisible(false);
+    this.scrollableContent.add(this.queueContainer);
+    this.queueSlots = [];
+
+    for (let i = 0; i < 5; i++) {
+      const slot = this.add.container(i * 35, 0);
+      const bg = this.add.rectangle(0, 0, 30, 30, 0x8b7355).setOrigin(0);
+      bg.setInteractive({ useHandCursor: true });
+      const icon = this.add.text(15, 15, '👷', { fontSize: '18px' }).setOrigin(0.5);
+      const cancel = this.add.text(15, 15, '✕', { fontSize: '24px', fill: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5).setVisible(false);
+
+      bg.on('pointerover', () => { cancel.setVisible(true); bg.setFillStyle(0x5a4030); });
+      bg.on('pointerout', () => { cancel.setVisible(false); bg.setFillStyle(0x8b7355); });
+      bg.on('pointerdown', () => {
+        if (this.selectedBuilding && this.selectedBuilding.productionQueue) {
+          this.selectedBuilding.productionQueue.cancelQueuedItem(i);
+          // Refresh panel to quickly update layout
+          setTimeout(() => {
+            if (this.selectedBuilding) this.showBuildingPanel(this.selectedBuilding);
+          }, 10);
+        }
+      });
+
+      slot.add([bg, icon, cancel]);
+      slot.setVisible(false);
+
+      slot.setup = (unitType) => {
+        let emoji = '❓';
+        if (unitType === 'worker') emoji = '👷';
+        if (unitType === 'guard') emoji = '🛡️';
+        if (unitType === 'scout') emoji = '🏹';
+        if (unitType === 'spy') emoji = '🕵️';
+        if (unitType === 'maverick') emoji = '🦅';
+        icon.setText(emoji);
+        slot.setVisible(true);
+      };
+
+      this.queueSlots.push(slot);
+      this.queueContainer.add(slot);
+    }
+
     // Scroll indicator (thumb) - draggable
     this.scrollThumb = this.add.rectangle(
       this.panelX + this.panelWidth - 10,
@@ -1355,14 +1398,15 @@ export default class UIScene extends Phaser.Scene {
   /**
    * Resize the panel to fit content (with scrollable area)
    */
-  resizePanel(numButtons, hasInfo = false, hasProgressBar = false) {
+  resizePanel(numButtons, hasInfo = false, hasProgressBar = false, hasQueue = false) {
     const progressBarHeight = hasProgressBar ? 22 : 0;
+    const queueHeight = hasQueue ? 36 : 0;
     const infoHeight = hasInfo ? 16 : 0;
     const buttonHeight = 36;
     const headerHeight = 18; // Status text height
 
     // Calculate total content height
-    const totalContentHeight = headerHeight + progressBarHeight + infoHeight + 20 + (numButtons * buttonHeight);
+    const totalContentHeight = headerHeight + progressBarHeight + queueHeight + infoHeight + 20 + (numButtons * buttonHeight);
     this.scrollContentHeight = totalContentHeight;
 
     // Update panel position first
@@ -1402,8 +1446,13 @@ export default class UIScene extends Phaser.Scene {
     this.progressBarBorder.setPosition(this.panelX + this.panelContentPadding.left + 5, progressY);
     this.progressBarText.setPosition(this.panelX + this.panelWidth / 2, progressY + 8);
 
-    // Info text (below progress bar if present)
-    const infoY = progressY + progressBarHeight;
+    // Info text (below queue if present)
+    const queueY = progressY + progressBarHeight;
+    if (this.queueContainer) {
+      this.queueContainer.setPosition(this.panelX + this.panelContentPadding.left + 5, queueY);
+    }
+
+    const infoY = queueY + queueHeight;
     this.buildingInfoText.setPosition(this.panelX + this.panelContentPadding.left + 5, infoY);
 
     // Section label
@@ -1442,12 +1491,29 @@ export default class UIScene extends Phaser.Scene {
     } else if (building.productionQueue?.getQueueStatus) {
       // Unit production queue
       const queueStatus = building.productionQueue.getQueueStatus();
-      if (queueStatus?.isProducing) {
-        progress = queueStatus.progress / 100;
-        const timeLeft = (queueStatus.timeRemaining / 1000).toFixed(1);
-        progressText = `Training ${queueStatus.currentUnit}... ${Math.floor(queueStatus.progress)}% (${timeLeft}s)`;
-        showBar = true;
-        barColor = 0x4CAF50; // Green for production
+      if (queueStatus?.isProducing || queueStatus?.queueLength > 0) {
+        if (queueStatus.isProducing) {
+          progress = queueStatus.progress / 100;
+          const timeLeft = (queueStatus.timeRemaining / 1000).toFixed(1);
+          progressText = `Training ${queueStatus.currentUnit}... ${Math.floor(queueStatus.progress)}% (${timeLeft}s)`;
+          showBar = true;
+          barColor = 0x4CAF50; // Green for production
+        }
+
+        // Handle Queue UI
+        if (this.queueContainer) {
+          this.queueContainer.setVisible(true);
+          const q = queueStatus.queue || [];
+          for (let i = 0; i < 5; i++) {
+            if (i < q.length) {
+              this.queueSlots[i].setup(q[i].unitType);
+            } else {
+              this.queueSlots[i].setVisible(false);
+            }
+          }
+        }
+      } else {
+        if (this.queueContainer) this.queueContainer.setVisible(false);
       }
     } else if (building.buildingType === 'RESEARCH_CENTER') {
       // Research progress
@@ -1493,6 +1559,7 @@ export default class UIScene extends Phaser.Scene {
     this.progressBarFill.setVisible(false);
     this.progressBarBorder.setVisible(false);
     this.progressBarText.setVisible(false);
+    if (this.queueContainer) this.queueContainer.setVisible(false);
   }
 
   /**
@@ -1615,7 +1682,12 @@ export default class UIScene extends Phaser.Scene {
     const numButtons = 1 + availableUpgrades.length; // 1 for train worker
 
     this.sectionLabel.setText('Production & Upgrades:');
-    let buttonY = this.resizePanel(numButtons, infoText !== '');
+    let buttonY = this.resizePanel(
+      numButtons,
+      infoText !== '',
+      queueStatus?.isProducing || false,
+      queueStatus?.queueLength > 0
+    );
 
     // Get resource manager for affordability check
     const gameScene = this.scene.get('GameScene');
@@ -1665,7 +1737,12 @@ export default class UIScene extends Phaser.Scene {
     const numButtons = canProduce.length + availableUpgrades.length;
 
     this.sectionLabel.setText('Train Units & Upgrades:');
-    let buttonY = this.resizePanel(numButtons, infoText !== '');
+    let buttonY = this.resizePanel(
+      numButtons,
+      infoText !== '',
+      queueStatus?.isProducing || false,
+      queueStatus?.queueLength > 0
+    );
 
     // Get resource manager for affordability check
     const gameScene = this.scene.get('GameScene');
@@ -1739,7 +1816,12 @@ export default class UIScene extends Phaser.Scene {
     const numButtons = canProduce.length + availableUpgrades.length;
 
     this.sectionLabel.setText('Train Units & Upgrades:');
-    let buttonY = this.resizePanel(numButtons, infoText !== '');
+    let buttonY = this.resizePanel(
+      numButtons,
+      infoText !== '',
+      queueStatus?.isProducing || false,
+      queueStatus?.queueLength > 0
+    );
 
     const gameScene = this.scene.get('GameScene');
     const resourceManager = gameScene?.resourceManager;
@@ -1793,7 +1875,7 @@ export default class UIScene extends Phaser.Scene {
     const numButtons = 1 + (hasBatch ? 1 : 0) + (hasAutoProduction ? 1 : 0) + availableUpgrades.length;
 
     this.sectionLabel.setText('Tool Production & Upgrades:');
-    let buttonY = this.resizePanel(numButtons, infoText !== '');
+    let buttonY = this.resizePanel(numButtons, infoText !== '', status.isProducing || false);
 
     // Get resource manager for affordability check
     const gameScene = this.scene.get('GameScene');

@@ -56,6 +56,11 @@ export default class Building extends Phaser.GameObjects.Container {
     // Block pathfinding tiles
     this.blockTiles();
 
+    // Rally point (where newly trained units auto-walk to)
+    this.rallyPoint = null; // {x, y} world coords
+    this.rallyMarker = null; // Visual flag sprite
+    this.rallyLine = null; // Line from building to rally point
+
     console.log(`Building: ${this.buildingName} created at (${x}, ${y})`);
   }
 
@@ -335,6 +340,62 @@ export default class Building extends Phaser.GameObjects.Container {
   }
 
   /**
+   * Set rally point for newly trained units
+   */
+  setRallyPoint(worldX, worldY) {
+    this.rallyPoint = { x: worldX, y: worldY };
+
+    // Remove existing marker
+    if (this.rallyMarker) {
+      this.rallyMarker.destroy();
+      this.rallyMarker = null;
+    }
+    if (this.rallyLine) {
+      this.rallyLine.destroy();
+      this.rallyLine = null;
+    }
+
+    // Draw a green flag marker at the rally point
+    this.rallyMarker = this.scene.add.graphics();
+    this.rallyMarker.setDepth(DEPTH.BUILDINGS + 1);
+
+    // Flag pole
+    this.rallyMarker.lineStyle(2, 0x00ff00, 0.8);
+    this.rallyMarker.lineBetween(worldX, worldY, worldX, worldY - 20);
+
+    // Flag triangle
+    this.rallyMarker.fillStyle(0x00ff00, 0.7);
+    this.rallyMarker.fillTriangle(
+      worldX, worldY - 20,
+      worldX + 10, worldY - 15,
+      worldX, worldY - 10
+    );
+
+    // Dotted line from building to rally point
+    this.rallyLine = this.scene.add.graphics();
+    this.rallyLine.setDepth(DEPTH.BUILDINGS);
+    this.rallyLine.lineStyle(1, 0x00ff00, 0.4);
+    this.rallyLine.lineBetween(this.x, this.y, worldX, worldY);
+
+    console.log(`Building ${this.buildingName}: Rally point set at (${Math.round(worldX)}, ${Math.round(worldY)})`);
+  }
+
+  /**
+   * Clear rally point
+   */
+  clearRallyPoint() {
+    this.rallyPoint = null;
+    if (this.rallyMarker) {
+      this.rallyMarker.destroy();
+      this.rallyMarker = null;
+    }
+    if (this.rallyLine) {
+      this.rallyLine.destroy();
+      this.rallyLine = null;
+    }
+  }
+
+  /**
    * Block pathfinding tiles
    */
   blockTiles() {
@@ -441,6 +502,9 @@ export default class Building extends Phaser.GameObjects.Container {
 
     // Unblock tiles
     this.unblockTiles();
+
+    // Clean up rally point marker
+    this.clearRallyPoint();
 
     // Explicitly clean up graphics objects to prevent memory leaks
     if (this.progressBg) {

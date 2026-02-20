@@ -7,6 +7,7 @@ import MenuScene from './scenes/MenuScene.js';
 import LoadingScene from './scenes/LoadingScene.js';
 import GameScene from './scenes/GameScene.js';
 import UIScene from './scenes/UIScene.js';
+import VictoryScene from './scenes/VictoryScene.js';
 
 // Phaser Game Configuration
 // Use window dimensions for fullscreen experience
@@ -14,7 +15,7 @@ const config = {
   type: Phaser.AUTO,
   backgroundColor: GAME_CONFIG.BACKGROUND_COLOR,
   parent: 'game-container',
-  scene: [BootScene, SplashScene, MenuScene, LoadingScene, GameScene, UIScene],
+  scene: [BootScene, SplashScene, MenuScene, LoadingScene, GameScene, UIScene, VictoryScene],
   physics: {
     default: 'arcade',
     arcade: {

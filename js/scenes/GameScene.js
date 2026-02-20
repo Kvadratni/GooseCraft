@@ -217,6 +217,79 @@ export default class GameScene extends Phaser.Scene {
     if (this.debugMode) {
       this.drawDebugHitboxes();
     }
+
+    // Check victory conditions once per second
+    if (!this.gameOver && (!this.lastVictoryCheck || time - this.lastVictoryCheck > 1000)) {
+      this.lastVictoryCheck = time;
+      this.checkVictoryConditions();
+    }
+  }
+
+  /**
+   * Check if win or loss conditions have been met
+   */
+  checkVictoryConditions() {
+    // Fast path: Don't check until at least 10 seconds into the match
+    // to allow initial bases to finish spawning
+    if (this.time.now < 10000) return;
+
+    let playerHasBuildings = false;
+    let enemyHasBuildings = false;
+
+    // Count operational buildings
+    for (const building of this.buildings) {
+      if (building.active && building.isOperational()) {
+        if (building.faction === 'PLAYER') {
+          playerHasBuildings = true;
+        } else if (building.faction.startsWith('ENEMY_')) {
+          enemyHasBuildings = true;
+        }
+      }
+    }
+
+    if (!playerHasBuildings) {
+      this.triggerGameOver(false); // Defeat
+    } else if (!enemyHasBuildings) {
+      this.triggerGameOver(true); // Victory
+    }
+  }
+
+  /**
+   * Handle game over state and launch VictoryScene
+   */
+  triggerGameOver(isVictory) {
+    if (this.gameOver) return;
+    this.gameOver = true;
+    console.log(`Game Over! ${isVictory ? 'Victory' : 'Defeat'}`);
+
+    // Pause game updates
+    this.physics.pause();
+    this.time.removeAllEvents();
+
+    // Disable input
+    if (this.selectionManager) {
+      this.selectionManager.clearSelection();
+      this.input.mouse.releasePointerLock();
+      this.input.keyboard.removeAllKeys();
+    }
+
+    // Calculate match duration
+    const matchTimeMs = this.time.now;
+    const minutes = Math.floor(matchTimeMs / 60000);
+    const seconds = Math.floor((matchTimeMs % 60000) / 1000);
+    const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+    // Gather basic stats
+    const stats = {
+      duration: durationStr,
+      unitsTrained: this.registry.get('stat_units_trained') || 0,
+      buildingsConstructed: this.registry.get('stat_buildings_built') || 0,
+      resourcesGathered: this.registry.get('stat_resources_gathered') || 0
+    };
+
+    // Launch overlay scene
+    this.scene.launch('VictoryScene', { isVictory, stats });
+    this.scene.bringToTop('VictoryScene');
   }
 
   /**
@@ -624,10 +697,11 @@ export default class GameScene extends Phaser.Scene {
     console.log('GameScene: Right-click detected');
 
     const selectedUnits = this.selectionManager.getSelectedUnits();
+    const selectedBuilding = this.selectionManager.selectedBuilding;
     console.log(`GameScene: ${selectedUnits.length} units selected`);
 
-    if (selectedUnits.length === 0) {
-      console.log('GameScene: No units selected, ignoring right-click');
+    if (selectedUnits.length === 0 && !selectedBuilding) {
+      console.log('GameScene: No units or building selected, ignoring right-click');
       return;
     }
 
@@ -636,6 +710,13 @@ export default class GameScene extends Phaser.Scene {
     const camera = this.cameras.main;
     const worldPoint = camera.getWorldPoint(pointer.x, pointer.y);
     const worldPos = { x: worldPoint.x, y: worldPoint.y };
+
+    if (selectedBuilding && selectedBuilding.setRallyPoint) {
+      // Set rally point for the building
+      selectedBuilding.setRallyPoint(worldPos.x, worldPos.y);
+      this.soundManager.playSFX('sfx-worker-acknowledge');
+      return;
+    }
 
     // Check if clicking on a resource node
     const clickedResource = this.findResourceAtPosition(worldPos.x, worldPos.y);

@@ -9,6 +9,7 @@ export default class SelectionManager {
 
     // Selected units
     this.selectedUnits = [];
+    this.selectedBuilding = null; // Currently selected building
 
     // Control groups (1-9)
     this.controlGroups = {};
@@ -166,9 +167,9 @@ export default class SelectionManager {
     // Find units within box (only player faction can be selected)
     const unitsInBox = this.scene.units.filter(unit => {
       return unit.active &&
-             unit.faction === FACTIONS.PLAYER &&
-             unit.x >= minX && unit.x <= maxX &&
-             unit.y >= minY && unit.y <= maxY;
+        unit.faction === FACTIONS.PLAYER &&
+        unit.x >= minX && unit.x <= maxX &&
+        unit.y >= minY && unit.y <= maxY;
     });
 
     // Check if shift is held
@@ -209,7 +210,7 @@ export default class SelectionManager {
     // Check for double-click
     const now = Date.now();
     const isDoubleClick = (now - this.lastClickTime < INPUT.DOUBLE_CLICK_THRESHOLD) &&
-                          (clickedUnit === this.lastClickedUnit);
+      (clickedUnit === this.lastClickedUnit);
     this.lastClickTime = now;
     this.lastClickedUnit = clickedUnit;
 
@@ -238,6 +239,8 @@ export default class SelectionManager {
 
       // Clear unit selection
       this.clearSelection();
+
+      this.selectedBuilding = clickedBuilding;
 
       // Show building UI
       this.showBuildingUI(clickedBuilding);
@@ -382,6 +385,7 @@ export default class SelectionManager {
   clearSelection() {
     this.selectedUnits.forEach(unit => unit.setSelected(false));
     this.selectedUnits = [];
+    this.selectedBuilding = null;
     this.hideUnitUI(); // Hide any unit ability panels
     this.updateUI();
   }
