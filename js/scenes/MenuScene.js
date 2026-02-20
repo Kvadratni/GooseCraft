@@ -484,7 +484,7 @@ export default class MenuScene extends Phaser.Scene {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
     const panelWidth = 400;
-    const panelHeight = 460;
+    const panelHeight = 550;
     const panelX = width / 2 - panelWidth / 2;
     const panelY = height / 2 - panelHeight / 2;
 
@@ -534,6 +534,23 @@ export default class MenuScene extends Phaser.Scene {
     // Default select medium
     medBtn.setBackgroundColor('#4CAF50');
 
+    // Map Seed Field
+    const seedLabel = this.add.text(panelX + panelWidth / 2, panelY + 360, 'Map Seed (Optional)', {
+      fontSize: '20px', fill: '#aaaaaa', fontFamily: 'Arial'
+    }).setOrigin(0.5).setDepth(2001).setVisible(false);
+
+    const seedBtn = this.add.text(panelX + panelWidth / 2, panelY + 400, 'Random', {
+      fontSize: '20px', fill: '#ffffff', backgroundColor: '#333333', padding: { x: 15, y: 10 }
+    }).setOrigin(0.5).setDepth(2001).setVisible(false).setInteractive({ useHandCursor: true });
+
+    seedBtn.on('pointerdown', () => {
+      const input = prompt("Enter a Map Seed (leave blank for random)", this.selectedMapConfig.seed || "");
+      if (input !== null) {
+        this.selectedMapConfig.seed = input.trim();
+        seedBtn.setText(this.selectedMapConfig.seed || "Random");
+      }
+    });
+
     // Start Button
     const startBtn = this.add.text(panelX + panelWidth / 2 - 80, panelY + panelHeight - 60, 'START', {
       fontSize: '24px', fill: '#ffffff', backgroundColor: '#4CAF50', padding: { x: 30, y: 15 }
@@ -554,7 +571,7 @@ export default class MenuScene extends Phaser.Scene {
     });
 
     this.newGamePanelElements = [
-      bg, border, title, mapSizeLabel, smallBtn, medBtn, lgBtn, startBtn, cancelBtn
+      bg, border, title, mapSizeLabel, smallBtn, medBtn, lgBtn, seedLabel, seedBtn, startBtn, cancelBtn
     ];
   }
 }

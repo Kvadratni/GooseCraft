@@ -2,12 +2,15 @@
 
 import { TILE, MAP, DEPTH, COLORS } from '../utils/Constants.js';
 import { gridToWorld, worldToGridInt, isWithinBounds } from '../utils/IsometricUtils.js';
+import NoiseManager from '../utils/NoiseManager.js';
 
 export default class IsometricMap {
   constructor(scene) {
     this.scene = scene;
-    this.gridWidth = scene.mapWidth || MAP.GRID_WIDTH;
-    this.gridHeight = scene.mapHeight || MAP.GRID_HEIGHT;
+    this.gridWidth = scene.mapConfig?.width || MAP.GRID_WIDTH;
+    this.gridHeight = scene.mapConfig?.height || MAP.GRID_HEIGHT;
+    this.seed = scene.mapConfig?.seed || this.generateRandomSeed();
+    this.noise = new NoiseManager(this.seed);
 
     // 2D array for tile data [x][y]
     this.tiles = [];
@@ -68,189 +71,68 @@ export default class IsometricMap {
   }
 
   /**
-   * Generate terrain type for a tile - Varied terrain with snow, rock, sand
+   * Helper to generate a random string seed if one isn't provided
+   */
+  generateRandomSeed() {
+    return Math.random().toString(36).substring(2, 10);
+  }
+
+  /**
+   * Generate terrain type for a tile using Procedural Simplex Noise.
    */
   generateTerrainType(x, y) {
-    // Base spawn area - southwest quadrant (always flat grass)
+    // 1) Force flatten the two standard base regions to guarantee playable starts
     const baseAreaX = this.gridWidth * 0.3;
     const baseAreaY = this.gridHeight * 0.3;
     const distFromBase = Math.sqrt(Math.pow(x - baseAreaX, 2) + Math.pow(y - baseAreaY, 2));
+    if (distFromBase < 12) return 'grass';
 
-    // Ensure base area is flat grassland (radius of 10 tiles)
-    if (distFromBase < 10) {
-      return 'grass';
-    }
-
-    // AI base area - northeast quadrant (also flat grass)
     const aiBaseAreaX = this.gridWidth * 0.7;
     const aiBaseAreaY = this.gridHeight * 0.7;
     const distFromAIBase = Math.sqrt(Math.pow(x - aiBaseAreaX, 2) + Math.pow(y - aiBaseAreaY, 2));
-    if (distFromAIBase < 10) {
-      return 'grass';
-    }
+    if (distFromAIBase < 12) return 'grass';
 
-    // Simple horizontal river across the middle with regular crossings
-    const riverY = this.gridHeight / 2;
-    const distFromRiver = Math.abs(y - riverY);
+    // Scale factors tuned to produce large coherent continents/biomes
+    const macroScale = 0.02;
+    const microScale = 0.08;
 
-    // River is 4 tiles wide
-    if (distFromRiver < 2 && x > 5 && x < this.gridWidth - 5) {
-      // Add crossings every 8 tiles
-      const crossingSpacing = 8;
-      const nearCrossing = (x % crossingSpacing) < 3;
+    // Evaluate Elevation: combines large overlapping hills (macro) with bumpy detail (micro)
+    const elevationMacro = this.noise.noise2D(x * macroScale, y * macroScale);
+    const elevationMicro = this.noise.noise2D(x * microScale + 1000, y * microScale + 1000);
+    // Weighted combination favoring large structures
+    const elevation = (elevationMacro * 0.8) + (elevationMicro * 0.2);
 
-      if (nearCrossing) {
-        return 'grass';  // Crossing point
-      }
+    // Evaluate Moisture: dictates secondary biome coloring (e.g., grass vs dry dirt vs snow)
+    const moistureOffset = 5000;
+    const moisture = this.noise.noise2D(x * macroScale + moistureOffset, y * macroScale + moistureOffset);
 
-      return 'water';  // River
-    }
-
-    // Multiple water lakes scattered around the map for easier water access
-    // Large lake near player base (southwest) - main water source
-    const lake1Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.2, 2) + Math.pow(y - this.gridHeight * 0.2, 2));
-    if (lake1Dist < 7 && distFromBase > 10) {
+    // Define Procedural Biomes
+    if (elevation < 0.25) {
+      // Deep/Shallow Water
       return 'water';
-    }
-
-    // Large lake in the northwest
-    const lake2Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.15, 2) + Math.pow(y - this.gridHeight * 0.6, 2));
-    if (lake2Dist < 6) {
-      return 'water';
-    }
-
-    // Lake near AI base (northeast area)
-    const lake3Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.8, 2) + Math.pow(y - this.gridHeight * 0.85, 2));
-    if (lake3Dist < 6 && distFromAIBase > 10) {
-      return 'water';
-    }
-
-    // Medium pond in the east
-    const lake4Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.9, 2) + Math.pow(y - this.gridHeight * 0.4, 2));
-    if (lake4Dist < 5) {
-      return 'water';
-    }
-
-    // Large pond in the center-north
-    const lake5Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.5, 2) + Math.pow(y - this.gridHeight * 0.25, 2));
-    if (lake5Dist < 6) {
-      return 'water';
-    }
-
-    // Medium pond in the center-south
-    const lake6Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.4, 2) + Math.pow(y - this.gridHeight * 0.75, 2));
-    if (lake6Dist < 5) {
-      return 'water';
-    }
-
-    // Oasis near player start - closer and larger
-    const oasisDist = Math.sqrt(Math.pow(x - this.gridWidth * 0.35, 2) + Math.pow(y - this.gridHeight * 0.3, 2));
-    if (oasisDist < 5 && distFromBase > 6) {
-      return 'water';
-    }
-
-    // Additional pond in southeast
-    const lake7Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.7, 2) + Math.pow(y - this.gridHeight * 0.5, 2));
-    if (lake7Dist < 4) {
-      return 'water';
-    }
-
-    // Additional pond near center
-    const lake8Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.55, 2) + Math.pow(y - this.gridHeight * 0.55, 2));
-    if (lake8Dist < 4) {
-      return 'water';
-    }
-
-    // Random element for variety (deterministic based on position)
-    const randomFactor = (Math.sin(x * 7.3 + y * 11.7) * 0.5 + 0.5);
-    const randomFactor2 = (Math.cos(x * 3.1 + y * 5.9) * 0.5 + 0.5);
-
-    // Snow region - northern area (top of map, low Y values)
-    const snowZoneY = this.gridHeight * 0.15;
-    if (y < snowZoneY && distFromBase > 15) {
-      // Snow terrain in the north
-      const snowNoise = Math.sin(x * 0.15 + y * 0.1) * Math.cos(x * 0.08);
-      if (snowNoise > 0.3 || randomFactor > 0.7) {
-        return 'snow';
-      }
-      // Ice near water
-      if (distFromRiver < 5 && randomFactor > 0.5) {
-        return 'ice';
-      }
-    }
-
-    // Rocky mountain region - eastern side
-    const rockZoneX = this.gridWidth * 0.85;
-    if (x > rockZoneX && distFromAIBase > 12) {
-      const rockNoise = Math.sin(x * 0.2) * Math.cos(y * 0.15);
-      if (rockNoise > 0.2 || randomFactor2 > 0.6) {
-        return 'rock';
-      }
-    }
-
-    // Multiple rock deposits scattered around the map for mine placement
-    // Rock deposit near player base
-    const rock1Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.35, 2) + Math.pow(y - this.gridHeight * 0.2, 2));
-    if (rock1Dist < 4 && distFromBase > 10) {
-      return 'rock';
-    }
-
-    // Rock deposit in the northwest
-    const rock2Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.1, 2) + Math.pow(y - this.gridHeight * 0.4, 2));
-    if (rock2Dist < 5) {
-      return 'rock';
-    }
-
-    // Rock deposit in the center
-    const rock3Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.5, 2) + Math.pow(y - this.gridHeight * 0.6, 2));
-    if (rock3Dist < 4) {
-      return 'rock';
-    }
-
-    // Rock deposit near AI base
-    const rock4Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.65, 2) + Math.pow(y - this.gridHeight * 0.8, 2));
-    if (rock4Dist < 4 && distFromAIBase > 10) {
-      return 'rock';
-    }
-
-    // Rock deposit in the south
-    const rock5Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.3, 2) + Math.pow(y - this.gridHeight * 0.85, 2));
-    if (rock5Dist < 3) {
-      return 'rock';
-    }
-
-    // Scattered rock outcrops throughout the map
-    const rockClusterNoise = Math.sin(x * 0.3 + y * 0.25) * Math.cos(x * 0.1 - y * 0.2);
-    if (rockClusterNoise > 0.75 && distFromBase > 15 && distFromAIBase > 15) {
-      return 'rock';
-    }
-
-    // Sandy beaches near water
-    if (distFromRiver < 4 && distFromRiver >= 2) {
-      if (randomFactor > 0.4) {
-        return 'sand';
-      }
-    }
-
-    // Sandy area in the southwest corner
-    const sandZoneDist = Math.sqrt(Math.pow(x - this.gridWidth * 0.1, 2) + Math.pow(y - this.gridHeight * 0.5, 2));
-    if (sandZoneDist < 8 && distFromBase > 12) {
+    } else if (elevation < 0.30) {
+      // Beach
       return 'sand';
+    } else if (elevation > 0.85) {
+      // Peaks
+      return 'snow';
+    } else if (elevation > 0.70) {
+      // Mountains
+      if (moisture > 0.6) return 'snow'; // Snowy mountains if wet
+      return 'rock';
+    } else {
+      // Plains / Forests (Middle Elevation)
+      if (moisture < 0.3) {
+        // Dry plains
+        return 'dirt';
+      } else if (moisture > 0.7 && elevation > 0.5) {
+        // Rocky outcrops in wet hills
+        return 'rock';
+      } else {
+        // Standard fertile grassland
+        return (Math.random() > 0.9) ? 'dirt' : 'grass';
+      }
     }
-
-    // Scattered dirt patches (all walkable)
-    const dirtNoise = Math.sin(x * 0.25) * Math.cos(y * 0.22);
-    if (dirtNoise > 0.65 && randomFactor > 0.5 && distFromBase > 8) {
-      return 'dirt';
-    }
-
-    // Small random dirt spots
-    if (randomFactor < 0.05 && distFromBase > 6) {
-      return 'dirt';
-    }
-
-    // Everything else is grass (maximum accessibility)
-    return 'grass';
   }
 
   /**
