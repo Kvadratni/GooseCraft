@@ -42,7 +42,7 @@ export default class SplashScene extends Phaser.Scene {
     });
 
     // Version text
-    const versionText = this.add.text(width / 2, height - 30, 'v0.2.0 Alpha', {
+    const versionText = this.add.text(width / 2, height - 30, 'v0.3.0 Alpha', {
       fontSize: '14px',
       fill: '#888888',
       fontFamily: 'Arial'
