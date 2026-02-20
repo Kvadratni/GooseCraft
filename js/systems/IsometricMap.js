@@ -2,12 +2,15 @@
 
 import { TILE, MAP, DEPTH, COLORS } from '../utils/Constants.js';
 import { gridToWorld, worldToGridInt, isWithinBounds } from '../utils/IsometricUtils.js';
+import NoiseManager from '../utils/NoiseManager.js';
 
 export default class IsometricMap {
   constructor(scene) {
     this.scene = scene;
-    this.gridWidth = MAP.GRID_WIDTH;
-    this.gridHeight = MAP.GRID_HEIGHT;
+    this.gridWidth = scene.mapConfig?.width || MAP.GRID_WIDTH;
+    this.gridHeight = scene.mapConfig?.height || MAP.GRID_HEIGHT;
+    this.seed = scene.mapConfig?.seed || this.generateRandomSeed();
+    this.noise = new NoiseManager(this.seed);
 
     // 2D array for tile data [x][y]
     this.tiles = [];
@@ -18,6 +21,10 @@ export default class IsometricMap {
     // Container for all terrain sprites
     this.terrainContainer = scene.add.container(0, 0);
     this.terrainContainer.setDepth(DEPTH.TERRAIN);
+
+    // Sprite pooling for camera culling
+    this.terrainPool = [];
+    this.activeTerrainTiles = new Map(); // Key: "x,y", Value: Sprite
 
     this.initialize();
   }
@@ -57,269 +64,187 @@ export default class IsometricMap {
       }
     }
 
-    // Render the terrain
-    this.renderTerrain();
+    // We no longer call renderTerrain() here. Sprites are dynamically 
+    // evaluated and pooled inside update() based on the camera view.
 
     console.log(`IsometricMap: Generated ${this.gridWidth}x${this.gridHeight} map`);
   }
 
   /**
-   * Generate terrain type for a tile - Varied terrain with snow, rock, sand
+   * Helper to generate a random string seed if one isn't provided
+   */
+  generateRandomSeed() {
+    return Math.random().toString(36).substring(2, 10);
+  }
+
+  /**
+   * Generate terrain type for a tile using Procedural Simplex Noise.
    */
   generateTerrainType(x, y) {
-    // Base spawn area - southwest quadrant (always flat grass)
-    const baseAreaX = this.gridWidth * 0.3;
-    const baseAreaY = this.gridHeight * 0.3;
-    const distFromBase = Math.sqrt(Math.pow(x - baseAreaX, 2) + Math.pow(y - baseAreaY, 2));
+    // 1) Force flatten 4 quadrants to guarantee playable starts for up to 4 players
+    const w = this.gridWidth;
+    const h = this.gridHeight;
+    const corners = [
+      { x: w * 0.15, y: h * 0.15 }, // Top-left
+      { x: w * 0.85, y: h * 0.85 }, // Bottom-right
+      { x: w * 0.85, y: h * 0.15 }, // Top-right
+      { x: w * 0.15, y: h * 0.85 }  // Bottom-left
+    ];
 
-    // Ensure base area is flat grassland (radius of 10 tiles)
-    if (distFromBase < 10) {
-      return 'grass';
+    for (const corner of corners) {
+      const dist = Math.sqrt(Math.pow(x - corner.x, 2) + Math.pow(y - corner.y, 2));
+      if (dist < 12) return 'grass';
     }
 
-    // AI base area - northeast quadrant (also flat grass)
-    const aiBaseAreaX = this.gridWidth * 0.7;
-    const aiBaseAreaY = this.gridHeight * 0.7;
-    const distFromAIBase = Math.sqrt(Math.pow(x - aiBaseAreaX, 2) + Math.pow(y - aiBaseAreaY, 2));
-    if (distFromAIBase < 10) {
-      return 'grass';
-    }
+    // Scale factors tuned to produce large coherent continents/biomes
+    const macroScale = 0.02;
+    const microScale = 0.08;
 
-    // Simple horizontal river across the middle with regular crossings
-    const riverY = this.gridHeight / 2;
-    const distFromRiver = Math.abs(y - riverY);
+    // Evaluate Elevation: combines large overlapping hills (macro) with bumpy detail (micro)
+    const elevationMacro = this.noise.noise2D(x * macroScale, y * macroScale);
+    const elevationMicro = this.noise.noise2D(x * microScale + 1000, y * microScale + 1000);
+    // Weighted combination favoring large structures
+    const elevation = (elevationMacro * 0.8) + (elevationMicro * 0.2);
 
-    // River is 4 tiles wide
-    if (distFromRiver < 2 && x > 5 && x < this.gridWidth - 5) {
-      // Add crossings every 8 tiles
-      const crossingSpacing = 8;
-      const nearCrossing = (x % crossingSpacing) < 3;
+    // Evaluate Moisture: dictates secondary biome coloring (e.g., grass vs dry dirt vs snow)
+    const moistureOffset = 5000;
+    const moisture = this.noise.noise2D(x * macroScale + moistureOffset, y * macroScale + moistureOffset);
 
-      if (nearCrossing) {
-        return 'grass';  // Crossing point
-      }
-
-      return 'water';  // River
-    }
-
-    // Multiple water lakes scattered around the map for easier water access
-    // Large lake near player base (southwest) - main water source
-    const lake1Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.2, 2) + Math.pow(y - this.gridHeight * 0.2, 2));
-    if (lake1Dist < 7 && distFromBase > 10) {
+    // Define Procedural Biomes
+    if (elevation < 0.25) {
+      // Deep/Shallow Water
       return 'water';
-    }
-
-    // Large lake in the northwest
-    const lake2Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.15, 2) + Math.pow(y - this.gridHeight * 0.6, 2));
-    if (lake2Dist < 6) {
-      return 'water';
-    }
-
-    // Lake near AI base (northeast area)
-    const lake3Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.8, 2) + Math.pow(y - this.gridHeight * 0.85, 2));
-    if (lake3Dist < 6 && distFromAIBase > 10) {
-      return 'water';
-    }
-
-    // Medium pond in the east
-    const lake4Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.9, 2) + Math.pow(y - this.gridHeight * 0.4, 2));
-    if (lake4Dist < 5) {
-      return 'water';
-    }
-
-    // Large pond in the center-north
-    const lake5Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.5, 2) + Math.pow(y - this.gridHeight * 0.25, 2));
-    if (lake5Dist < 6) {
-      return 'water';
-    }
-
-    // Medium pond in the center-south
-    const lake6Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.4, 2) + Math.pow(y - this.gridHeight * 0.75, 2));
-    if (lake6Dist < 5) {
-      return 'water';
-    }
-
-    // Oasis near player start - closer and larger
-    const oasisDist = Math.sqrt(Math.pow(x - this.gridWidth * 0.35, 2) + Math.pow(y - this.gridHeight * 0.3, 2));
-    if (oasisDist < 5 && distFromBase > 6) {
-      return 'water';
-    }
-
-    // Additional pond in southeast
-    const lake7Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.7, 2) + Math.pow(y - this.gridHeight * 0.5, 2));
-    if (lake7Dist < 4) {
-      return 'water';
-    }
-
-    // Additional pond near center
-    const lake8Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.55, 2) + Math.pow(y - this.gridHeight * 0.55, 2));
-    if (lake8Dist < 4) {
-      return 'water';
-    }
-
-    // Random element for variety (deterministic based on position)
-    const randomFactor = (Math.sin(x * 7.3 + y * 11.7) * 0.5 + 0.5);
-    const randomFactor2 = (Math.cos(x * 3.1 + y * 5.9) * 0.5 + 0.5);
-
-    // Snow region - northern area (top of map, low Y values)
-    const snowZoneY = this.gridHeight * 0.15;
-    if (y < snowZoneY && distFromBase > 15) {
-      // Snow terrain in the north
-      const snowNoise = Math.sin(x * 0.15 + y * 0.1) * Math.cos(x * 0.08);
-      if (snowNoise > 0.3 || randomFactor > 0.7) {
-        return 'snow';
-      }
-      // Ice near water
-      if (distFromRiver < 5 && randomFactor > 0.5) {
-        return 'ice';
-      }
-    }
-
-    // Rocky mountain region - eastern side
-    const rockZoneX = this.gridWidth * 0.85;
-    if (x > rockZoneX && distFromAIBase > 12) {
-      const rockNoise = Math.sin(x * 0.2) * Math.cos(y * 0.15);
-      if (rockNoise > 0.2 || randomFactor2 > 0.6) {
-        return 'rock';
-      }
-    }
-
-    // Multiple rock deposits scattered around the map for mine placement
-    // Rock deposit near player base
-    const rock1Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.35, 2) + Math.pow(y - this.gridHeight * 0.2, 2));
-    if (rock1Dist < 4 && distFromBase > 10) {
-      return 'rock';
-    }
-
-    // Rock deposit in the northwest
-    const rock2Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.1, 2) + Math.pow(y - this.gridHeight * 0.4, 2));
-    if (rock2Dist < 5) {
-      return 'rock';
-    }
-
-    // Rock deposit in the center
-    const rock3Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.5, 2) + Math.pow(y - this.gridHeight * 0.6, 2));
-    if (rock3Dist < 4) {
-      return 'rock';
-    }
-
-    // Rock deposit near AI base
-    const rock4Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.65, 2) + Math.pow(y - this.gridHeight * 0.8, 2));
-    if (rock4Dist < 4 && distFromAIBase > 10) {
-      return 'rock';
-    }
-
-    // Rock deposit in the south
-    const rock5Dist = Math.sqrt(Math.pow(x - this.gridWidth * 0.3, 2) + Math.pow(y - this.gridHeight * 0.85, 2));
-    if (rock5Dist < 3) {
-      return 'rock';
-    }
-
-    // Scattered rock outcrops throughout the map
-    const rockClusterNoise = Math.sin(x * 0.3 + y * 0.25) * Math.cos(x * 0.1 - y * 0.2);
-    if (rockClusterNoise > 0.75 && distFromBase > 15 && distFromAIBase > 15) {
-      return 'rock';
-    }
-
-    // Sandy beaches near water
-    if (distFromRiver < 4 && distFromRiver >= 2) {
-      if (randomFactor > 0.4) {
-        return 'sand';
-      }
-    }
-
-    // Sandy area in the southwest corner
-    const sandZoneDist = Math.sqrt(Math.pow(x - this.gridWidth * 0.1, 2) + Math.pow(y - this.gridHeight * 0.5, 2));
-    if (sandZoneDist < 8 && distFromBase > 12) {
+    } else if (elevation < 0.30) {
+      // Beach
       return 'sand';
-    }
-
-    // Scattered dirt patches (all walkable)
-    const dirtNoise = Math.sin(x * 0.25) * Math.cos(y * 0.22);
-    if (dirtNoise > 0.65 && randomFactor > 0.5 && distFromBase > 8) {
-      return 'dirt';
-    }
-
-    // Small random dirt spots
-    if (randomFactor < 0.05 && distFromBase > 6) {
-      return 'dirt';
-    }
-
-    // Everything else is grass (maximum accessibility)
-    return 'grass';
-  }
-
-  /**
-   * Render all terrain tiles
-   */
-  renderTerrain() {
-    console.log('IsometricMap: Rendering terrain...');
-
-    for (let x = 0; x < this.gridWidth; x++) {
-      for (let y = 0; y < this.gridHeight; y++) {
-        this.renderTile(x, y);
+    } else if (elevation > 0.85) {
+      // Peaks
+      return 'snow';
+    } else if (elevation > 0.70) {
+      // Mountains
+      if (moisture > 0.6) return 'snow'; // Snowy mountains if wet
+      return 'rock';
+    } else {
+      // Plains / Forests (Middle Elevation)
+      if (moisture < 0.3) {
+        // Dry plains
+        return 'dirt';
+      } else if (moisture > 0.7 && elevation > 0.5) {
+        // Rocky outcrops in wet hills
+        return 'rock';
+      } else {
+        // Standard fertile grassland
+        return (Math.random() > 0.9) ? 'dirt' : 'grass';
       }
     }
   }
 
   /**
-   * Render a single tile
+   * Helper to determine texture string from terrain enum
    */
-  renderTile(gridX, gridY) {
-    const tile = this.tiles[gridX][gridY];
-    const worldPos = gridToWorld(gridX, gridY);
+  getTextureKeyForType(terrainType) {
+    switch (terrainType) {
+      case 'grass': return 'ground';
+      case 'dirt': return 'dirt';
+      case 'water': return 'water';
+      case 'sand': return 'sand';
+      case 'rock': return 'rock';
+      case 'snow': return 'snow';
+      case 'ice': return 'ice';
+      default: return 'ground';
+    }
+  }
 
-    // Get texture key based on terrain type
-    let textureKey;
-    switch (tile.terrainType) {
-      case 'grass':
-        textureKey = 'ground';
-        break;
-      case 'dirt':
-        textureKey = 'dirt';
-        break;
-      case 'water':
-        textureKey = 'water';
-        break;
-      case 'sand':
-        textureKey = 'sand';
-        break;
-      case 'rock':
-        textureKey = 'rock';
-        break;
-      case 'snow':
-        textureKey = 'snow';
-        break;
-      case 'ice':
-        textureKey = 'ice';
-        break;
-      default:
-        textureKey = 'ground';
+  /**
+   * Dynamic Camera Culling: Show only tiles within the camera bounds.
+   * Recycles Sprites into a pool to maintain 60FPS on Large Maps.
+   */
+  update(camera) {
+    if (!camera) return;
+
+    // Get camera bounds in world space
+    const zoom = camera.zoom || 1;
+    const camX = camera.scrollX;
+    const camY = camera.scrollY;
+    const camW = camera.width / zoom;
+    const camH = camera.height / zoom;
+
+    // Calculate the approximate center of the camera in Grid coordinates
+    const centerWorldX = camX + (camW / 2);
+    const centerWorldY = camY + (camH / 2);
+    const centerGrid = worldToGridInt(centerWorldX, centerWorldY);
+
+    // Heuristic range based on window size and tile size.
+    // TILE.WIDTH is 128, TILE.HEIGHT is 64. 
+    // We pad the viewport heavily so edges don't pop brightly on screen.
+    const rangeX = Math.ceil((camW / TILE.WIDTH) * 1.5);
+    const rangeY = Math.ceil((camH / TILE.HEIGHT_HALF) * 1.5);
+
+    const minX = Math.max(0, centerGrid.x - rangeX);
+    const maxX = Math.min(this.gridWidth - 1, centerGrid.x + rangeX);
+    const minY = Math.max(0, centerGrid.y - rangeY);
+    const maxY = Math.min(this.gridHeight - 1, centerGrid.y + rangeY);
+
+    // Keep track of which tiles are designated visible this frame
+    const visibleKeys = new Set();
+
+    // Evaluate viewport
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        const key = `${x},${y}`;
+        visibleKeys.add(key);
+
+        // If the tile isn't currently active, wake one up from the pool
+        if (!this.activeTerrainTiles.has(key)) {
+          const tile = this.tiles[x][y];
+          const worldPos = gridToWorld(x, y);
+          const textureKey = this.getTextureKeyForType(tile.terrainType);
+          let sprite;
+
+          if (this.terrainPool.length > 0) {
+            sprite = this.terrainPool.pop();
+            sprite.setTexture(textureKey);
+            sprite.setPosition(worldPos.x + TILE.WIDTH_HALF, worldPos.y + TILE.HEIGHT_HALF);
+            sprite.setVisible(true);
+            sprite.setActive(true);
+          } else {
+            // Allocate a new sprite if the pool is starved
+            sprite = this.scene.add.sprite(
+              worldPos.x + TILE.WIDTH_HALF,
+              worldPos.y + TILE.HEIGHT_HALF,
+              textureKey
+            );
+            sprite.setAngle(45);
+            const baseScale = (TILE.WIDTH * 1.45) / 1024;
+            sprite.setScale(baseScale, baseScale * 0.5);
+            sprite.setOrigin(0.5, 0.5);
+            sprite.setAlpha(0.98);
+            this.terrainContainer.add(sprite);
+          }
+
+          // Point the data model to the recycled sprite
+          tile.sprite = sprite;
+          this.activeTerrainTiles.set(key, sprite);
+        }
+      }
     }
 
-    // Create sprite for the tile
-    const sprite = this.scene.add.sprite(
-      worldPos.x + TILE.WIDTH_HALF,
-      worldPos.y + TILE.HEIGHT_HALF,
-      textureKey
-    );
+    // Culling pass: Any tile currently active but NOT in visibleKeys is off-screen.
+    // Return its Sprite to the pool.
+    for (const [key, sprite] of this.activeTerrainTiles.entries()) {
+      if (!visibleKeys.has(key)) {
+        sprite.setVisible(false);
+        sprite.setActive(false);
+        this.terrainPool.push(sprite);
+        this.activeTerrainTiles.delete(key);
 
-    // For proper 2:1 isometric ratio, rotate 45 degrees and scale Y to 0.5 of X
-    sprite.setAngle(45);
-
-    // Calculate scale for isometric diamond (2:1 ratio)
-    // The rotated tile should create a diamond that's 64 pixels wide and 32 pixels tall
-    const baseScale = (TILE.WIDTH * 1.45) / 1024; // Base scale for width
-    sprite.setScale(baseScale, baseScale * 0.5); // Y scale is half of X for 2:1 ratio
-
-    sprite.setOrigin(0.5, 0.5);
-    sprite.setAlpha(0.98); // Slightly higher alpha for better visibility
-
-    // Add to container
-    this.terrainContainer.add(sprite);
-
-    // Store reference
-    tile.sprite = sprite;
+        // Null the reference on the data model
+        const [gx, gy] = key.split(',').map(Number);
+        if (this.tiles[gx] && this.tiles[gx][gy]) {
+          this.tiles[gx][gy].sprite = null;
+        }
+      }
+    }
   }
 
   /**

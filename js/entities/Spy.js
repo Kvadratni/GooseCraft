@@ -2,6 +2,7 @@
 
 import CombatUnit from './CombatUnit.js';
 import { UNIT, UNIT_STATS, FACTIONS } from '../utils/Constants.js';
+import { updateStealthAnimation } from '../systems/UnitAnimator.js';
 
 export default class Spy extends CombatUnit {
   constructor(scene, x, y, faction) {
@@ -53,6 +54,12 @@ export default class Spy extends CombatUnit {
   update(time, delta) {
     super.update(time, delta);
 
+    // Overlay stealth shimmer when stealthed (player spy only)
+    if (this.isStealthed && this.faction === FACTIONS.PLAYER && this.sprite) {
+      this.animTime += delta / 1000;
+      updateStealthAnimation(this.sprite, this.animTime);
+    }
+
     // Update ability cooldowns
     if (this.sabotageTimer > 0) {
       this.sabotageTimer -= delta;
@@ -102,8 +109,8 @@ export default class Spy extends CombatUnit {
   updateStealthVisual() {
     if (this.sprite) {
       if (this.isStealthed && this.faction === FACTIONS.PLAYER) {
-        // Player's spy is semi-transparent when stealthed
-        this.sprite.setAlpha(0.5);
+        // Player spy: shimmer handled per-frame in update(); set mid-alpha as baseline
+        this.sprite.setAlpha(0.45);
       } else if (this.isStealthed && this.faction !== FACTIONS.PLAYER) {
         // Enemy spies are invisible to player when stealthed (handled in render)
         this.sprite.setAlpha(0.2);

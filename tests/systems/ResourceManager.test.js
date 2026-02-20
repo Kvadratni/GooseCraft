@@ -23,7 +23,7 @@ describe('ResourceManager', () => {
     it('should add resources successfully', () => {
       const result = resourceManager.addResources('food', 50);
       expect(result).toBe(true);
-      expect(resourceManager.getAmount('food')).toBe(150); // 100 starting + 50
+      expect(resourceManager.getAmount('food')).toBe(250); // 200 starting + 50
     });
 
     it('should reject invalid resource type', () => {
@@ -61,13 +61,13 @@ describe('ResourceManager', () => {
     it('should remove resources successfully', () => {
       const result = resourceManager.removeResources('food', 50);
       expect(result).toBe(true);
-      expect(resourceManager.getAmount('food')).toBe(50); // 100 starting - 50
+      expect(resourceManager.getAmount('food')).toBe(150); // 200 starting - 50
     });
 
     it('should reject removing more than available', () => {
       const result = resourceManager.removeResources('food', 1000);
       expect(result).toBe(false);
-      expect(resourceManager.getAmount('food')).toBe(100); // Unchanged
+      expect(resourceManager.getAmount('food')).toBe(200); // Unchanged
     });
 
     it('should reject invalid resource type', () => {
@@ -129,7 +129,7 @@ describe('ResourceManager', () => {
       const result = resourceManager.spend(cost);
 
       expect(result).toBe(true);
-      expect(resourceManager.getAmount('food')).toBe(50);
+      expect(resourceManager.getAmount('food')).toBe(150);
       expect(resourceManager.getAmount('water')).toBe(70);
     });
 
@@ -171,7 +171,7 @@ describe('ResourceManager', () => {
 
   describe('getAmount and getLimit', () => {
     it('should return current amount', () => {
-      expect(resourceManager.getAmount('food')).toBe(100);
+      expect(resourceManager.getAmount('food')).toBe(200);
     });
 
     it('should return 0 for unknown resources', () => {

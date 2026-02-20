@@ -250,4 +250,32 @@ export default class ResourceManager {
       );
     }
   }
+
+  /**
+   * Serialize state for saving
+   */
+  toJSON() {
+    return {
+      resources: { ...this.resources },
+      storageLimits: { ...this.storageLimits }
+    };
+  }
+
+  /**
+   * Restore state from load
+   */
+  fromJSON(data) {
+    if (!data) return;
+
+    if (data.resources) {
+      this.resources = { ...data.resources };
+    }
+
+    if (data.storageLimits) {
+      this.storageLimits = { ...data.storageLimits };
+    }
+
+    console.log('ResourceManager: Restored state from save');
+    this.updateUI();
+  }
 }

@@ -52,7 +52,7 @@ export const BUILDING = {
     displayName: 'Coop',
     width: 192,
     height: 192,
-    footprint: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], // 3x3
+    footprint: [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]], // 3x3
     health: 500,
     cost: { food: 0, water: 0, sticks: 0, tools: 0 }, // Starting building
     constructionTime: 0,
@@ -65,7 +65,7 @@ export const BUILDING = {
     displayName: 'Resource Storage',
     width: 128,
     height: 128,
-    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    footprint: [[0, 0], [1, 0], [0, 1], [1, 1]], // 2x2
     health: 200,
     cost: { food: 50, water: 0, sticks: 100, tools: 0 },
     constructionTime: 10000,
@@ -78,9 +78,9 @@ export const BUILDING = {
     displayName: 'Factory',
     width: 128,
     height: 128,
-    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    footprint: [[0, 0], [1, 0], [0, 1], [1, 1]], // 2x2
     health: 300,
-    cost: { food: 100, water: 50, sticks: 200, tools: 0 },
+    cost: { food: 100, water: 50, sticks: 150, tools: 0 },
     constructionTime: 20000,
     tier: 2,
     buildable: true,
@@ -92,7 +92,7 @@ export const BUILDING = {
     displayName: 'Research Center',
     width: 128,
     height: 128,
-    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    footprint: [[0, 0], [1, 0], [0, 1], [1, 1]], // 2x2
     health: 250,
     cost: { food: 75, water: 100, sticks: 150, stone: 100, tools: 20 },
     constructionTime: 18000,
@@ -106,9 +106,9 @@ export const BUILDING = {
     displayName: 'Barracks',
     width: 128,
     height: 128,
-    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    footprint: [[0, 0], [1, 0], [0, 1], [1, 1]], // 2x2
     health: 400,
-    cost: { food: 150, water: 0, sticks: 250, stone: 150, tools: 25 },
+    cost: { food: 150, water: 0, sticks: 250, stone: 100, tools: 25 },
     constructionTime: 25000,
     tier: 3,
     buildable: true,
@@ -120,7 +120,7 @@ export const BUILDING = {
     displayName: 'Watchtower',
     width: 64,
     height: 128,
-    footprint: [[0,0]], // 1x1
+    footprint: [[0, 0]], // 1x1
     health: 300,
     cost: { food: 75, water: 25, sticks: 200, stone: 100, tools: 15 },
     constructionTime: 12000,
@@ -134,9 +134,9 @@ export const BUILDING = {
     displayName: 'Power Station',
     width: 128,
     height: 128,
-    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    footprint: [[0, 0], [1, 0], [0, 1], [1, 1]], // 2x2
     health: 250,
-    cost: { food: 0, water: 100, sticks: 300, stone: 200, tools: 50 },
+    cost: { food: 0, water: 100, sticks: 250, stone: 150, tools: 40 },
     constructionTime: 30000,
     tier: 3,
     buildable: true,
@@ -148,7 +148,7 @@ export const BUILDING = {
     displayName: 'Mine',
     width: 128,
     height: 128,
-    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    footprint: [[0, 0], [1, 0], [0, 1], [1, 1]], // 2x2
     health: 300,
     cost: { food: 0, water: 50, sticks: 200, tools: 10 },
     constructionTime: 15000,
@@ -164,7 +164,7 @@ export const BUILDING = {
     displayName: 'Airstrip',
     width: 128,
     height: 128,
-    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    footprint: [[0, 0], [1, 0], [0, 1], [1, 1]], // 2x2
     health: 200,
     cost: { food: 0, water: 100, sticks: 300, stone: 200, tools: 25 },
     constructionTime: 20000,
@@ -180,7 +180,7 @@ export const BUILDING = {
     displayName: 'Farm',
     width: 128,
     height: 128,
-    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    footprint: [[0, 0], [1, 0], [0, 1], [1, 1]], // 2x2
     health: 150,
     cost: { food: 25, water: 50, sticks: 100, tools: 5 },
     constructionTime: 12000,
@@ -196,7 +196,7 @@ export const BUILDING = {
     displayName: 'Well',
     width: 64,
     height: 64,
-    footprint: [[0,0]], // 1x1
+    footprint: [[0, 0]], // 1x1
     health: 100,
     cost: { food: 25, water: 0, sticks: 75, tools: 3 },
     constructionTime: 8000,
@@ -212,7 +212,7 @@ export const BUILDING = {
     displayName: 'Lumber Mill',
     width: 128,
     height: 128,
-    footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
+    footprint: [[0, 0], [1, 0], [0, 1], [1, 1]], // 2x2
     health: 200,
     cost: { food: 50, water: 25, sticks: 150, tools: 8 },
     constructionTime: 15000,
@@ -230,7 +230,7 @@ export const RESOURCE = {
   FOOD: {
     name: 'Food',
     capacity: 100,  // Reduced from 500 - each crop field has ~100 food
-    gatherRate: 10,  // per gather action
+    gatherRate: 12,  // per gather action
     regenerateRate: 0  // per second, 0 = no regeneration
   },
   WATER: {
@@ -242,7 +242,7 @@ export const RESOURCE = {
   STICKS: {
     name: 'Sticks',
     capacity: 30,  // Reduced from 500 - each tree gives 20-40 wood (random)
-    gatherRate: 6,
+    gatherRate: 8,
     regenerateRate: 0
   },
   STONE: {
@@ -261,9 +261,9 @@ export const RESOURCE = {
 
 // Storage Limits (base limits without any storage buildings)
 export const STORAGE = {
-  FOOD: 200,       // Lower base - need Resource Storage to expand
+  FOOD: 300,       // Boosted base - need Resource Storage to expand
   WATER: 150,
-  STICKS: 300,
+  STICKS: 400,     // Boosted base - need Resource Storage to expand
   STONE: 100,
   TOOLS: 20,
   // Increased by building ResourceStorage
@@ -337,14 +337,18 @@ export const BUILDING_STATES = {
 // Factions
 export const FACTIONS = {
   PLAYER: 'PLAYER',
-  ENEMY_AI: 'ENEMY_AI',
+  ENEMY_1: 'ENEMY_1',
+  ENEMY_2: 'ENEMY_2',
+  ENEMY_3: 'ENEMY_3',
   NEUTRAL: 'NEUTRAL'
 };
 
 // Faction Colors
 export const FACTION_COLORS = {
-  PLAYER: 0x2196F3,    // Blue (like Age of Empires)
-  ENEMY_AI: 0xF44336,  // Red
+  PLAYER: 0x2196F3,    // Blue
+  ENEMY_1: 0xF44336,   // Red
+  ENEMY_2: 0x9C27B0,   // Purple
+  ENEMY_3: 0xFF9800,   // Orange
   NEUTRAL: 0x9E9E9E    // Gray
 };
 
@@ -359,8 +363,8 @@ export const UNIT_COSTS = {
 
 // Tool Production (Factory converts sticks to tools)
 export const TOOL_PRODUCTION = {
-  STICKS_PER_TOOL: 5,        // 5 sticks = 1 tool (was 10)
-  PRODUCTION_TIME: 3000,      // 3 seconds per tool
+  STICKS_PER_TOOL: 3,        // 3 sticks = 1 tool (was 5)
+  PRODUCTION_TIME: 2000,      // 2 seconds per tool
   AUTO_PRODUCTION: false      // Requires Research Center upgrade
 };
 

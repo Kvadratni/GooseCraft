@@ -12,9 +12,9 @@ export default class FogOfWar {
 
     // Fog state for each tile: 0=unexplored, 1=explored, 2=visible
     this.fogState = [];
-    for (let y = 0; y < MAP.GRID_HEIGHT; y++) {
+    for (let y = 0; y < (this.scene.mapHeight || MAP.GRID_HEIGHT); y++) {
       this.fogState[y] = [];
-      for (let x = 0; x < MAP.GRID_WIDTH; x++) {
+      for (let x = 0; x < (this.scene.mapWidth || MAP.GRID_WIDTH); x++) {
         this.fogState[y][x] = 0; // All tiles start unexplored
       }
     }
@@ -35,8 +35,8 @@ export default class FogOfWar {
    */
   revealInitialArea() {
     // Match the player spawn location from GameScene (30% from left, 30% from top)
-    const startGridX = Math.floor(MAP.GRID_WIDTH * 0.3);
-    const startGridY = Math.floor(MAP.GRID_HEIGHT * 0.3);
+    const startGridX = Math.floor((this.scene.mapWidth || MAP.GRID_WIDTH) * 0.3);
+    const startGridY = Math.floor((this.scene.mapHeight || MAP.GRID_HEIGHT) * 0.3);
     const revealRadius = 15; // Slightly larger radius
 
     for (let dy = -revealRadius; dy <= revealRadius; dy++) {
@@ -97,8 +97,8 @@ export default class FogOfWar {
     if (!this.enabled) return;
 
     // Reset all explored tiles to "explored but not visible"
-    for (let y = 0; y < MAP.GRID_HEIGHT; y++) {
-      for (let x = 0; x < MAP.GRID_WIDTH; x++) {
+    for (let y = 0; y < (this.scene.mapHeight || MAP.GRID_HEIGHT); y++) {
+      for (let x = 0; x < (this.scene.mapWidth || MAP.GRID_WIDTH); x++) {
         if (this.fogState[y][x] === 2) {
           this.fogState[y][x] = 1; // Explored
         }
@@ -162,7 +162,7 @@ export default class FogOfWar {
    * Check if tile coordinates are valid
    */
   isValidTile(x, y) {
-    return x >= 0 && x < MAP.GRID_WIDTH && y >= 0 && y < MAP.GRID_HEIGHT;
+    return x >= 0 && x < (this.scene.mapWidth || MAP.GRID_WIDTH) && y >= 0 && y < (this.scene.mapHeight || MAP.GRID_HEIGHT);
   }
 
   /**
@@ -271,8 +271,8 @@ export default class FogOfWar {
     for (let gridY = extendedBounds.minY; gridY < extendedBounds.maxY; gridY++) {
       for (let gridX = extendedBounds.minX; gridX < extendedBounds.maxX; gridX++) {
         // Check if this tile is outside the valid map bounds
-        const isOutOfBounds = gridX < 0 || gridX >= MAP.GRID_WIDTH ||
-                              gridY < 0 || gridY >= MAP.GRID_HEIGHT;
+        const isOutOfBounds = gridX < 0 || gridX >= (this.scene.mapWidth || MAP.GRID_WIDTH) ||
+                              gridY < 0 || gridY >= (this.scene.mapHeight || MAP.GRID_HEIGHT);
 
         if (isOutOfBounds) {
           // Outside map bounds - solid black

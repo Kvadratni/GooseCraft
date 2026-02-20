@@ -4,6 +4,7 @@ import { GAME_CONFIG } from './utils/Constants.js';
 import BootScene from './scenes/BootScene.js';
 import SplashScene from './scenes/SplashScene.js';
 import MenuScene from './scenes/MenuScene.js';
+import LoadingScene from './scenes/LoadingScene.js';
 import GameScene from './scenes/GameScene.js';
 import UIScene from './scenes/UIScene.js';
 
@@ -13,7 +14,7 @@ const config = {
   type: Phaser.AUTO,
   backgroundColor: GAME_CONFIG.BACKGROUND_COLOR,
   parent: 'game-container',
-  scene: [BootScene, SplashScene, MenuScene, GameScene, UIScene],
+  scene: [BootScene, SplashScene, MenuScene, LoadingScene, GameScene, UIScene],
   physics: {
     default: 'arcade',
     arcade: {
@@ -28,8 +29,9 @@ const config = {
   scale: {
     mode: Phaser.Scale.RESIZE,
     parent: 'game-container',
-    width: '100%',
-    height: '100%'
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: window.innerWidth,
+    height: window.innerHeight
   }
 };
 
