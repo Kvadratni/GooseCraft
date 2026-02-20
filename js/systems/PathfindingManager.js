@@ -16,6 +16,7 @@ export default class PathfindingManager {
 
     // Track if grid needs updating (optimization)
     this.gridDirty = false;
+    this.dirtyCells = []; // Track specific dirty cells
 
     console.log('PathfindingManager: Initialized');
   }
@@ -55,10 +56,27 @@ export default class PathfindingManager {
   findPath(startX, startY, endX, endY, callback) {
     // Update grid if it has changed since last pathfinding
     if (this.gridDirty) {
-      const grid = this.isometricMap.getPathfindingGrid();
-      this.easystar.setGrid(grid);
+      if (this.dirtyCells.length > 50) {
+        // If too many changes, just replace the whole grid
+        const grid = this.isometricMap.getPathfindingGrid();
+        this.easystar.setGrid(grid);
+        console.log(`PathfindingManager: Grid fully updated (too many dirty cells: ${this.dirtyCells.length})`);
+      } else {
+        // Update specific cells
+        const grid = this.isometricMap.getPathfindingGrid();
+        for (const cell of this.dirtyCells) {
+          // EasyStar accepts (x, y) arrays, not objects, for targeted updates if using setAdditionalPointCost, 
+          // but since our map is dynamic, we'll extract the value from our main grid array directly or use the underlying grid structure.
+          // However, since easyStar.setGrid() does a deep copy internally by default, the most reliable optimization 
+          // without hacking easystar internals is to still use setGrid but batch it.
+          // Since we can't do per-cell updates reliably with easystar v0.4.4, we'll continue using setGrid but batch them.
+          // (EasyStar actually does allow modifying instances but `setGrid` is safer for now).
+        }
+        this.easystar.setGrid(grid);
+        console.log(`PathfindingManager: Grid updated (${this.dirtyCells.length} cells modified)`);
+      }
+      this.dirtyCells = [];
       this.gridDirty = false;
-      console.log('PathfindingManager: Grid updated (was dirty)');
     }
 
     // Validate coordinates
@@ -136,7 +154,7 @@ export default class PathfindingManager {
    */
   isValidCoordinate(x, y) {
     return x >= 0 && x < this.isometricMap.gridWidth &&
-           y >= 0 && y < this.isometricMap.gridHeight;
+      y >= 0 && y < this.isometricMap.gridHeight;
   }
 
   /**
@@ -156,8 +174,9 @@ export default class PathfindingManager {
     // Update the tile
     grid[gridY][gridX] = walkable ? 0 : 1;
 
-    // Mark grid as dirty (will be updated before next pathfinding)
+    // Mark grid as dirty
     this.gridDirty = true;
+    this.dirtyCells.push({ x: gridX, y: gridY });
   }
 
   /**
@@ -171,10 +190,11 @@ export default class PathfindingManager {
     tiles.forEach(tile => {
       if (this.isValidCoordinate(tile.x, tile.y)) {
         grid[tile.y][tile.x] = walkable ? 0 : 1;
+        this.dirtyCells.push({ x: tile.x, y: tile.y });
       }
     });
 
-    // Mark grid as dirty (will be updated before next pathfinding)
+    // Mark grid as dirty
     this.gridDirty = true;
   }
 
@@ -208,7 +228,7 @@ export default class PathfindingManager {
   findNearestWalkableTile(gridX, gridY, maxRadius = 5) {
     // First check the tile itself
     if (this.isValidCoordinate(gridX, gridY) &&
-        this.isometricMap.isWalkable(gridX, gridY)) {
+      this.isometricMap.isWalkable(gridX, gridY)) {
       return { x: gridX, y: gridY };
     }
 
@@ -225,7 +245,7 @@ export default class PathfindingManager {
             const testY = gridY + dy;
 
             if (this.isValidCoordinate(testX, testY) &&
-                this.isometricMap.isWalkable(testX, testY)) {
+              this.isometricMap.isWalkable(testX, testY)) {
               // Calculate true Euclidean distance
               const dist = Math.sqrt(dx * dx + dy * dy);
               candidates.push({ x: testX, y: testY, dist: dist });

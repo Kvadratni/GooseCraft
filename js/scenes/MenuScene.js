@@ -1,6 +1,7 @@
 // Menu Scene - Main Menu
 
 import SoundManager from '../systems/SoundManager.js';
+import SaveManager from '../utils/SaveManager.js';
 
 export default class MenuScene extends Phaser.Scene {
   constructor() {
@@ -28,13 +29,12 @@ export default class MenuScene extends Phaser.Scene {
       () => this.startNewGame()
     );
 
-    // Load Game Button (disabled for now)
+    // Load Game Button
     const loadGameButton = this.createButton(
       width / 2,
       height / 2 + 140,
-      'Load Game (Coming Soon)',
-      null,
-      true
+      'Load Game',
+      () => this.loadSavedGame()
     );
 
     // Settings Button
@@ -202,6 +202,55 @@ export default class MenuScene extends Phaser.Scene {
       // Also start UIScene in parallel
       this.scene.launch('UIScene');
     });
+  }
+
+  /**
+   * Load a previously saved game
+   */
+  async loadSavedGame() {
+    console.log('MenuScene: Loading saved game...');
+
+    try {
+      const saveManager = new SaveManager();
+      await saveManager.init();
+      const gameState = await saveManager.loadGame('auto_save');
+
+      if (!gameState) {
+        console.log('MenuScene: No save found');
+        // Show a brief message using a temp text
+        const noSave = this.add.text(
+          this.cameras.main.width / 2,
+          this.cameras.main.height / 2 + 190,
+          'No save file found!',
+          { fontSize: '18px', fill: '#ff6666', fontFamily: 'Arial', stroke: '#000', strokeThickness: 3 }
+        ).setOrigin(0.5).setDepth(3000);
+        this.time.delayedCall(2000, () => noSave.destroy());
+        return;
+      }
+
+      // Store save data globally so GameScene can pick it up after create()
+      window.__goosecraft_pending_load = gameState;
+
+      // Stop menu music
+      if (this.soundManager && this.soundManager.currentMusic) {
+        this.soundManager.stopMusic(false);
+      }
+
+      // Fade out and start game
+      this.cameras.main.fadeOut(500, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        if (this.soundManager) {
+          this.soundManager.destroy();
+          this.soundManager = null;
+        }
+        this.scene.stop('MenuScene');
+        this.scene.start('GameScene');
+        this.scene.launch('UIScene');
+      });
+
+    } catch (err) {
+      console.error('MenuScene: Failed to load game:', err);
+    }
   }
 
   /**

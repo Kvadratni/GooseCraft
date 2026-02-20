@@ -84,6 +84,73 @@ export default class GameScene extends Phaser.Scene {
     this.soundManager.playMusic('music-game', true);
 
     console.log('GameScene: Ready');
+
+    // Check for pending load from main menu
+    if (window.__goosecraft_pending_load) {
+      this.time.delayedCall(100, () => {
+        this.applyPendingLoad(window.__goosecraft_pending_load);
+        window.__goosecraft_pending_load = null;
+      });
+    }
+  }
+
+  /**
+   * Apply a pending load from the main menu
+   */
+  applyPendingLoad(gameState) {
+    console.log('GameScene: Applying pending load...');
+
+    // Cleanup default-spawned entities
+    [...this.buildings].forEach(b => b.destroy());
+    [...this.units].forEach(u => u.destroy());
+    this.buildings = [];
+    this.units = [];
+
+    // Restore resources
+    if (gameState.resources) this.resourceManager.fromJSON(gameState.resources);
+
+    // Restore buildings
+    if (gameState.buildings) this.buildingManager.fromJSON(gameState.buildings);
+
+    // Restore units
+    if (gameState.units && Array.isArray(gameState.units)) {
+      gameState.units.forEach(uData => {
+        let unit;
+        const type = uData.unitType?.toLowerCase() || 'worker';
+
+        switch (type) {
+          case 'worker':
+            if (this.unitClasses.Goose) unit = new this.unitClasses.Goose(this, uData.x, uData.y, uData.faction);
+            break;
+          case 'guard':
+            if (this.unitClasses.Guard) unit = new this.unitClasses.Guard(this, uData.x, uData.y, uData.faction);
+            break;
+          case 'scout':
+            if (this.unitClasses.Scout) unit = new this.unitClasses.Scout(this, uData.x, uData.y, uData.faction);
+            break;
+          case 'spy':
+            if (this.unitClasses.Spy) unit = new this.unitClasses.Spy(this, uData.x, uData.y, uData.faction);
+            break;
+          case 'maverick':
+            if (this.unitClasses.Maverick) unit = new this.unitClasses.Maverick(this, uData.x, uData.y, uData.faction);
+            break;
+        }
+
+        if (unit) {
+          unit.fromJSON(uData);
+          this.units.push(unit);
+        }
+      });
+      console.log(`GameScene: Restored ${gameState.units.length} units from save`);
+    }
+
+    // Restore camera
+    if (gameState.camera) {
+      this.cameras.main.setScroll(gameState.camera.x, gameState.camera.y);
+      this.cameras.main.setZoom(gameState.camera.zoom);
+    }
+
+    console.log('GameScene: Save loaded successfully');
   }
 
   update(time, delta) {
@@ -139,8 +206,8 @@ export default class GameScene extends Phaser.Scene {
     // Check all 8 adjacent tiles
     const offsets = [
       [-1, -1], [0, -1], [1, -1],
-      [-1,  0],          [1,  0],
-      [-1,  1], [0,  1], [1,  1]
+      [-1, 0], [1, 0],
+      [-1, 1], [0, 1], [1, 1]
     ];
 
     let adjacentLandCount = 0;

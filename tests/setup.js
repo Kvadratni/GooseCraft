@@ -1,5 +1,6 @@
 // Jest test setup
-
+import { jest } from '@jest/globals';
+global.jest = jest;
 // Mock Phaser global
 global.Phaser = {
   Math: {
@@ -23,20 +24,20 @@ global.Phaser = {
     }
   },
   Scene: class Scene {
-    constructor() {}
+    constructor() { }
   }
 };
 
 // Mock EasyStar global
 global.EasyStar = {
   js: class {
-    setGrid() {}
-    setAcceptableTiles() {}
-    enableDiagonals() {}
-    disableCornerCutting() {}
-    setIterationsPerCalculation() {}
-    findPath() {}
-    calculate() {}
+    setGrid() { }
+    setAcceptableTiles() { }
+    enableDiagonals() { }
+    disableCornerCutting() { }
+    setIterationsPerCalculation() { }
+    findPath() { }
+    calculate() { }
   }
 };
 

@@ -80,7 +80,7 @@ export const BUILDING = {
     height: 128,
     footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
     health: 300,
-    cost: { food: 100, water: 50, sticks: 200, tools: 0 },
+    cost: { food: 100, water: 50, sticks: 150, tools: 0 },
     constructionTime: 20000,
     tier: 2,
     buildable: true,
@@ -108,7 +108,7 @@ export const BUILDING = {
     height: 128,
     footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
     health: 400,
-    cost: { food: 150, water: 0, sticks: 250, stone: 150, tools: 25 },
+    cost: { food: 150, water: 0, sticks: 250, stone: 100, tools: 25 },
     constructionTime: 25000,
     tier: 3,
     buildable: true,
@@ -136,7 +136,7 @@ export const BUILDING = {
     height: 128,
     footprint: [[0,0], [1,0], [0,1], [1,1]], // 2x2
     health: 250,
-    cost: { food: 0, water: 100, sticks: 300, stone: 200, tools: 50 },
+    cost: { food: 0, water: 100, sticks: 250, stone: 150, tools: 40 },
     constructionTime: 30000,
     tier: 3,
     buildable: true,
@@ -230,7 +230,7 @@ export const RESOURCE = {
   FOOD: {
     name: 'Food',
     capacity: 100,  // Reduced from 500 - each crop field has ~100 food
-    gatherRate: 10,  // per gather action
+    gatherRate: 12,  // per gather action
     regenerateRate: 0  // per second, 0 = no regeneration
   },
   WATER: {
@@ -242,7 +242,7 @@ export const RESOURCE = {
   STICKS: {
     name: 'Sticks',
     capacity: 30,  // Reduced from 500 - each tree gives 20-40 wood (random)
-    gatherRate: 6,
+    gatherRate: 8,
     regenerateRate: 0
   },
   STONE: {
@@ -261,9 +261,9 @@ export const RESOURCE = {
 
 // Storage Limits (base limits without any storage buildings)
 export const STORAGE = {
-  FOOD: 200,       // Lower base - need Resource Storage to expand
+  FOOD: 300,       // Boosted base - need Resource Storage to expand
   WATER: 150,
-  STICKS: 300,
+  STICKS: 400,     // Boosted base - need Resource Storage to expand
   STONE: 100,
   TOOLS: 20,
   // Increased by building ResourceStorage
@@ -359,8 +359,8 @@ export const UNIT_COSTS = {
 
 // Tool Production (Factory converts sticks to tools)
 export const TOOL_PRODUCTION = {
-  STICKS_PER_TOOL: 5,        // 5 sticks = 1 tool (was 10)
-  PRODUCTION_TIME: 3000,      // 3 seconds per tool
+  STICKS_PER_TOOL: 3,        // 3 sticks = 1 tool (was 5)
+  PRODUCTION_TIME: 2000,      // 2 seconds per tool
   AUTO_PRODUCTION: false      // Requires Research Center upgrade
 };
 

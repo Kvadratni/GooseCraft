@@ -28,7 +28,7 @@ export default class Unit extends Phaser.GameObjects.Container {
     this.finalDestination = null;
 
     // Stuck detection
-    this.lastPosition = { x: x, y: y };
+    this.stuckCheckPosition = { x: x, y: y };
     this.stuckTimer = 0;
     this.stuckThreshold = 1500; // 1.5 second without moving = stuck
 
@@ -247,25 +247,55 @@ export default class Unit extends Phaser.GameObjects.Container {
     }
 
     // Stuck detection
-    const movedDistance = Phaser.Math.Distance.Between(this.x, this.y, this.lastPosition.x, this.lastPosition.y);
-    if (movedDistance < 2) {
-      // Not moving (or moving very slowly)
-      this.stuckTimer += delta;
+    this.stuckTimer += delta;
+    if (this.stuckTimer >= this.stuckThreshold) {
+      // Check total distance moved over the threshold window
+      const movedDistance = Phaser.Math.Distance.Between(this.x, this.y, this.stuckCheckPosition.x, this.stuckCheckPosition.y);
 
-      if (this.stuckTimer >= this.stuckThreshold) {
+      if (movedDistance < 15) {
         this.stuckRecoveryAttempts++;
         console.warn(`Unit: Stuck for ${this.stuckThreshold}ms (attempt ${this.stuckRecoveryAttempts}/${this.maxStuckRecoveryAttempts})`);
-        this.stuckTimer = 0;
 
         // Give up after too many attempts
         if (this.stuckRecoveryAttempts >= this.maxStuckRecoveryAttempts) {
           console.error('Unit: Too many stuck recovery attempts, giving up');
+
+          // Before giving up, if we have a target resource or building, check if we're "close enough" and try to proceed
+          if ((this.pendingGatherStart && this.targetResource) || (this.pendingReturnToBase) || (this.pendingConstruction && this.targetBuilding)) {
+            const destDist = this.finalDestination ? Phaser.Math.Distance.Between(this.x, this.y, this.finalDestination.x, this.finalDestination.y) : 999;
+            if (destDist < 100) {
+              console.log(`Unit: Trapped but close to objective (${Math.round(destDist)}px), forcing transition.`);
+              this.currentPath = [];
+              this.currentPathIndex = 0;
+
+              if (this.pendingGatherStart) {
+                this.setState(UNIT_STATES.GATHERING);
+                this.pendingGatherStart = false;
+              } else if (this.pendingReturnToBase) {
+                this.setState(UNIT_STATES.RETURNING);
+                this.pendingReturnToBase = false;
+              } else if (this.pendingConstruction) {
+                this.setState(UNIT_STATES.CONSTRUCTING);
+                this.pendingConstruction = false;
+              }
+              return;
+            }
+          }
+
           this.setState(UNIT_STATES.IDLE);
           return;
         }
 
-        // First attempt: skip to next waypoint (might be blocked by current one)
-        if (this.stuckRecoveryAttempts === 1 && this.currentPath.length > this.currentPathIndex + 1) {
+        // First attempt: apply a small jitter to get un-stuck from corners
+        if (this.stuckRecoveryAttempts === 1) {
+          console.log(`Unit: Applying anti-stuck jitter`);
+          this.x += (Math.random() - 0.5) * 15;
+          this.y += (Math.random() - 0.5) * 15;
+          return;
+        }
+
+        // Second attempt: skip to next waypoint (might be blocked by current one)
+        if (this.stuckRecoveryAttempts === 2 && this.currentPath.length > this.currentPathIndex + 1) {
           this.currentPathIndex++;
           console.log(`Unit: Skipping waypoint, trying next (${this.currentPathIndex}/${this.currentPath.length})`);
           return;
@@ -290,12 +320,16 @@ export default class Unit extends Phaser.GameObjects.Container {
           console.warn('Unit: No target destination, going idle');
           this.setState(UNIT_STATES.IDLE);
         }
+
+        // Reset check window after a recovery attempt
+        this.stuckTimer = 0;
+        this.stuckCheckPosition = { x: this.x, y: this.y };
         return;
+      } else {
+        // Not stuck: reset check window for the next period
+        this.stuckTimer = 0;
+        this.stuckCheckPosition = { x: this.x, y: this.y };
       }
-    } else {
-      // Moving successfully, reset stuck timer
-      this.stuckTimer = 0;
-      this.lastPosition = { x: this.x, y: this.y };
     }
 
     // Get current target node
@@ -398,7 +432,7 @@ export default class Unit extends Phaser.GameObjects.Container {
         // Reset stuck detection when starting new movement
         this.stuckTimer = 0;
         this.movementTimer = 0;
-        this.lastPosition = { x: this.x, y: this.y };
+        this.stuckCheckPosition = { x: this.x, y: this.y };
         // Don't reset stuckRecoveryAttempts here - it persists across path retries
         // Don't reset finalDestination - keep it for recovery
       }
@@ -436,7 +470,7 @@ export default class Unit extends Phaser.GameObjects.Container {
       return;
     }
 
-    if (window.gcVerbose) console.log(`Unit: Path found with ${path.length} nodes from (${path[0].x}, ${path[0].y}) to (${path[path.length-1].x}, ${path[path.length-1].y})`);
+    if (window.gcVerbose) console.log(`Unit: Path found with ${path.length} nodes from (${path[0].x}, ${path[0].y}) to (${path[path.length - 1].x}, ${path[path.length - 1].y})`);
 
     // Special case: path has only one node (already at destination)
     if (path.length === 1) {
@@ -636,7 +670,7 @@ export default class Unit extends Phaser.GameObjects.Container {
    * Resolve collisions with other units and buildings
    */
   resolveCollisions() {
-    const pushStrength = 0.5; // How strongly to push apart (0-1)
+    const pushStrength = 0.2; // How strongly to push apart (0-1) - lowered to reduce jitter
 
     // Check collision with other units
     if (this.scene.units) {
@@ -676,7 +710,7 @@ export default class Unit extends Phaser.GameObjects.Container {
         // Allow any unit with resources to approach friendly buildings
         if (this.inventory && building.faction === this.faction) {
           const totalResources = (this.inventory.food || 0) + (this.inventory.water || 0) +
-                                 (this.inventory.sticks || 0) + (this.inventory.tools || 0);
+            (this.inventory.sticks || 0) + (this.inventory.tools || 0);
           if (totalResources > 0) return;
         }
 
@@ -735,5 +769,39 @@ export default class Unit extends Phaser.GameObjects.Container {
       this.sprite.preFX.clear();
     }
     super.destroy();
+  }
+
+  /**
+   * Serialize for save game
+   */
+  toJSON() {
+    return {
+      unitType: this.unitType,
+      x: this.x,
+      y: this.y,
+      faction: this.faction,
+      state: this.state,
+      health: this.currentHealth,
+      maxHealth: this.maxHealth,
+      speed: this.speed,
+      inventory: this.inventory ? { ...this.inventory } : null
+    };
+  }
+
+  /**
+   * Load from save game
+   */
+  fromJSON(data) {
+    if (!data) return;
+    this.state = data.state || this.state;
+    this.currentHealth = data.health ?? this.currentHealth;
+    this.maxHealth = data.maxHealth || this.maxHealth;
+    this.speed = data.speed || this.speed;
+
+    if (data.inventory && this.inventory) {
+      this.inventory = { ...data.inventory };
+    }
+
+    this.draw();
   }
 }

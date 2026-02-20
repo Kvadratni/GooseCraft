@@ -313,4 +313,59 @@ export default class BuildingManager {
   isInPlacementMode() {
     return this.isPlacementMode;
   }
+
+  /**
+   * Serialize buildings
+   */
+  toJSON() {
+    return this.scene.buildings.map(b => b.toJSON());
+  }
+
+  /**
+   * Load buildings from save data
+   */
+  fromJSON(data) {
+    if (!data || !Array.isArray(data)) return;
+
+    const buildingClassMap = {
+      'COOP': Coop,
+      'RESOURCE_STORAGE': ResourceStorage,
+      'RESEARCH_CENTER': ResearchCenter,
+      'BARRACKS': Barracks,
+      'FACTORY': Factory,
+      'MINE': Mine,
+      'AIRSTRIP': Airstrip,
+      'WATCHTOWER': Watchtower,
+      'POWER_STATION': PowerStation,
+      'FARM': Farm,
+      'WELL': Well,
+      'LUMBER_MILL': LumberMill
+    };
+
+    data.forEach(bData => {
+      const BuildingClass = buildingClassMap[bData.buildingType] || Building;
+      let building;
+
+      if (BuildingClass === Building) {
+        const config = BUILDING[bData.buildingType];
+        const genericConfig = {
+          type: bData.buildingType,
+          name: config?.name || 'Building',
+          health: config?.health || 100,
+          constructionTime: config?.constructionTime || 0,
+          footprint: config?.footprint || [[0, 0]],
+          spriteKey: this.getSpriteKey(bData.buildingType),
+          size: Math.max(config?.width || 64, config?.height || 64)
+        };
+        building = new Building(this.scene, bData.x, bData.y, genericConfig, bData.faction);
+      } else {
+        building = new BuildingClass(this.scene, bData.x, bData.y, bData.faction);
+      }
+
+      building.fromJSON(bData);
+      this.scene.buildings.push(building);
+    });
+
+    console.log(`BuildingManager: Restored ${data.length} buildings`);
+  }
 }

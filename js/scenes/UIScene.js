@@ -39,8 +39,10 @@ export default class UIScene extends Phaser.Scene {
     this.createTopBar();
     this.createBuildMenu();
     this.createMinimap();
+    // Create building panel
     this.createBuildingPanel();
-    // Debug toggle removed - use keyboard shortcut in GameScene if needed
+
+    // Create settings panel (contains Save/Load)
     this.createSettingsPanel();
 
     // Listen for resize events
@@ -694,7 +696,7 @@ export default class UIScene extends Phaser.Scene {
     // Helper to check if a minimap position is within bounds
     const isWithinMinimapBounds = (isoX, isoY) => {
       return isoX >= this.minimapX && isoX <= this.minimapX + this.minimapSize &&
-             isoY >= this.minimapY && isoY <= this.minimapY + this.minimapSize;
+        isoY >= this.minimapY && isoY <= this.minimapY + this.minimapSize;
     };
 
     // Helper to convert grid coords to minimap position
@@ -895,9 +897,9 @@ export default class UIScene extends Phaser.Scene {
    */
   isPointerOverMinimap(x, y) {
     return x >= this.minimapX &&
-           x <= this.minimapX + this.minimapSize &&
-           y >= this.minimapY &&
-           y <= this.minimapY + this.minimapSize;
+      x <= this.minimapX + this.minimapSize &&
+      y >= this.minimapY &&
+      y <= this.minimapY + this.minimapSize;
   }
 
   /**
@@ -1185,9 +1187,9 @@ export default class UIScene extends Phaser.Scene {
    */
   isPointerOverPanel(pointer) {
     return pointer.x >= this.panelX &&
-           pointer.x <= this.panelX + this.panelWidth &&
-           pointer.y >= this.panelY &&
-           pointer.y <= this.panelY + this.panelBaseHeight;
+      pointer.x <= this.panelX + this.panelWidth &&
+      pointer.y >= this.panelY &&
+      pointer.y <= this.panelY + this.panelBaseHeight;
   }
 
   /**
@@ -2470,7 +2472,7 @@ export default class UIScene extends Phaser.Scene {
 
     // Settings panel (hidden by default)
     const panelWidth = 400;
-    const panelHeight = 300;
+    const panelHeight = 420;
     const panelX = this.screenWidth / 2 - panelWidth / 2;
     const panelY = this.screenHeight / 2 - panelHeight / 2;
 
@@ -2583,8 +2585,36 @@ export default class UIScene extends Phaser.Scene {
     sfxHandle.setVisible(false);
     sfxHandle.setInteractive({ useHandCursor: true, draggable: true });
 
+    // Save Game button
+    const saveButton = this.add.text(panelX + panelWidth / 2 - 110, panelY + 270, '💾 Save Game', {
+      fontSize: '18px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      backgroundColor: '#2196F3',
+      padding: { x: 15, y: 8 }
+    });
+    saveButton.setOrigin(0.5);
+    saveButton.setScrollFactor(0);
+    saveButton.setDepth(2001);
+    saveButton.setVisible(false);
+    saveButton.setInteractive({ useHandCursor: true });
+
+    // Load Game button
+    const loadButton = this.add.text(panelX + panelWidth / 2 + 110, panelY + 270, '📂 Load Game', {
+      fontSize: '18px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      backgroundColor: '#FF9800',
+      padding: { x: 15, y: 8 }
+    });
+    loadButton.setOrigin(0.5);
+    loadButton.setScrollFactor(0);
+    loadButton.setDepth(2001);
+    loadButton.setVisible(false);
+    loadButton.setInteractive({ useHandCursor: true });
+
     // Close button
-    const closeButton = this.add.text(panelX + panelWidth / 2, panelY + 260, 'Close', {
+    const closeButton = this.add.text(panelX + panelWidth / 2, panelY + 370, 'Close', {
       fontSize: '20px',
       fill: '#ffffff',
       fontFamily: 'Arial',
@@ -2612,6 +2642,8 @@ export default class UIScene extends Phaser.Scene {
       sfxSliderBg,
       sfxSliderFill,
       sfxHandle,
+      saveButton,
+      loadButton,
       closeButton
     ];
 
@@ -2641,6 +2673,18 @@ export default class UIScene extends Phaser.Scene {
     // Close button click handler
     closeButton.on('pointerdown', () => {
       this.settingsPanelElements.forEach(element => element.setVisible(false));
+    });
+
+    // Save button click handler
+    saveButton.on('pointerdown', () => {
+      this.settingsPanelElements.forEach(element => element.setVisible(false));
+      this.handleSaveGame();
+    });
+
+    // Load button click handler
+    loadButton.on('pointerdown', () => {
+      this.settingsPanelElements.forEach(element => element.setVisible(false));
+      this.handleLoadGame();
     });
 
     // Music slider drag handler
@@ -2678,5 +2722,141 @@ export default class UIScene extends Phaser.Scene {
     });
 
     console.log('UIScene: Settings panel created');
+  }
+
+
+
+  /**
+   * Orchestrate Game Save
+   */
+  async handleSaveGame() {
+    const gameScene = this.scene.get('GameScene');
+    if (!gameScene) return;
+
+    // Play sound
+    if (gameScene.soundManager) gameScene.soundManager.playSFX('sfx-button-click');
+
+    this.showTooltip(this.screenWidth - 200, 100, 'Saving game...');
+
+    try {
+      // Lazy load SaveManager since it might not be initialized globally
+      if (!this.saveManager) {
+        const { default: SaveManager } = await import('../utils/SaveManager.js');
+        this.saveManager = new SaveManager();
+      }
+
+      const gameState = {
+        resources: gameScene.resourceManager.toJSON(),
+        buildings: gameScene.buildingManager.toJSON(),
+        units: gameScene.units.map(u => u.toJSON()),
+        camera: {
+          x: gameScene.cameras.main.scrollX,
+          y: gameScene.cameras.main.scrollY,
+          zoom: gameScene.cameras.main.zoom
+        }
+      };
+
+      await this.saveManager.saveGame('auto_save', gameState);
+      this.showTooltip(this.screenWidth - 200, 100, 'Game Saved Successfully!');
+
+      // Hide tooltip after delay
+      this.time.delayedCall(2000, () => this.hideTooltip());
+
+
+    } catch (err) {
+      console.error('Failed to save game:', err);
+      this.showTooltip(this.screenWidth - 200, 100, 'Error: Could not save game.');
+      this.time.delayedCall(3000, () => this.hideTooltip());
+    }
+  }
+
+  /**
+   * Orchestrate Game Load
+   */
+  async handleLoadGame() {
+    const gameScene = this.scene.get('GameScene');
+    if (!gameScene) return;
+
+    // Play sound
+    if (gameScene.soundManager) gameScene.soundManager.playSFX('sfx-button-click');
+
+    this.showTooltip(this.screenWidth - 200, 100, 'Loading game...');
+
+    try {
+      if (!this.saveManager) {
+        const { default: SaveManager } = await import('../utils/SaveManager.js');
+        this.saveManager = new SaveManager();
+      }
+
+      const gameState = await this.saveManager.loadGame('auto_save');
+
+      if (!gameState) {
+        this.showTooltip(this.screenWidth - 200, 100, 'No save found.');
+        this.time.delayedCall(2000, () => this.hideTooltip());
+        return;
+      }
+
+      // Cleanup existing entities
+      [...gameScene.buildings].forEach(b => b.destroy());
+      [...gameScene.units].forEach(u => u.destroy());
+      gameScene.buildings = [];
+      gameScene.units = [];
+
+      // Restore state
+      if (gameState.resources) gameScene.resourceManager.fromJSON(gameState.resources);
+      if (gameState.buildings) gameScene.buildingManager.fromJSON(gameState.buildings);
+
+      // Restore Units
+      if (gameState.units && Array.isArray(gameState.units)) {
+        gameState.units.forEach(uData => {
+          let unit;
+          const type = uData.unitType?.toLowerCase() || 'worker';
+
+          switch (type) {
+            case 'worker':
+              const Goose = gameScene.unitClasses?.Goose;
+              if (Goose) unit = new Goose(gameScene, uData.x, uData.y, uData.faction);
+              break;
+            case 'guard':
+              const Guard = gameScene.unitClasses?.Guard;
+              if (Guard) unit = new Guard(gameScene, uData.x, uData.y, uData.faction);
+              break;
+            case 'scout':
+              const Scout = gameScene.unitClasses?.Scout;
+              if (Scout) unit = new Scout(gameScene, uData.x, uData.y, uData.faction);
+              break;
+            case 'spy':
+              const Spy = gameScene.unitClasses?.Spy;
+              if (Spy) unit = new Spy(gameScene, uData.x, uData.y, uData.faction);
+              break;
+            case 'maverick':
+              const Maverick = gameScene.unitClasses?.Maverick;
+              if (Maverick) unit = new Maverick(gameScene, uData.x, uData.y, uData.faction);
+              break;
+          }
+
+          if (unit) {
+            unit.fromJSON(uData);
+            gameScene.units.push(unit);
+          }
+        });
+        console.log(`UIScene: Restored ${gameState.units.length} units`);
+      }
+
+      // Restore camera
+      if (gameState.camera) {
+        gameScene.cameras.main.setScroll(gameState.camera.x, gameState.camera.y);
+        gameScene.cameras.main.setZoom(gameState.camera.zoom);
+      }
+
+      this.showTooltip(this.screenWidth - 200, 100, 'Game Loaded!');
+      this.time.delayedCall(2000, () => this.hideTooltip());
+
+
+    } catch (err) {
+      console.error('Failed to load game:', err);
+      this.showTooltip(this.screenWidth - 200, 100, 'Error: Could not load game.');
+      this.time.delayedCall(3000, () => this.hideTooltip());
+    }
   }
 }

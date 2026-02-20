@@ -467,4 +467,42 @@ export default class Building extends Phaser.GameObjects.Container {
     // Remove from scene
     super.destroy();
   }
+
+  /**
+   * Serialize for save game
+   */
+  toJSON() {
+    return {
+      buildingType: this.buildingType,
+      x: this.x,
+      y: this.y,
+      faction: this.faction,
+      state: this.state,
+      health: this.health,
+      maxHealth: this.maxHealth,
+      progress: this.progress,
+      sabotagedTimeRemaining: this.sabotagedTimeRemaining
+    };
+  }
+
+  /**
+   * Load from save game
+   */
+  fromJSON(data) {
+    if (!data) return;
+    this.state = data.state || this.state;
+    this.health = data.health ?? this.health;
+    this.maxHealth = data.maxHealth || this.maxHealth;
+    this.progress = data.progress || this.progress;
+    this.sabotagedTimeRemaining = data.sabotagedTimeRemaining || 0;
+
+    // Update visuals based on restored state
+    this.updateHealthBar();
+    this.updateProgressBar();
+    if (this.state === BUILDING_STATES.OPERATIONAL) {
+      if (this.progressBar) this.progressBar.setVisible(false);
+      if (this.progressBg) this.progressBg.setVisible(false);
+      this.clearTint();
+    }
+  }
 }
