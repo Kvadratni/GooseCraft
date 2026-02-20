@@ -79,6 +79,9 @@ export default class GameScene extends Phaser.Scene {
     // Calculate spawn coordinates for all active factions
     this.calculateDynamicSpawns();
 
+    // Ensure all spawns are connected via land/mountain passes before placing entities
+    this.isometricMap.ensureSpawnConnectivity(this.spawnPoints);
+
     // Spawn player starting base & units at Spawn 0
     this.spawnStartingBase(this.spawnPoints[0]);
     this.spawnStartingUnits(this.spawnPoints[0]);

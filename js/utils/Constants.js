@@ -11,7 +11,8 @@ export const TILE = {
   WIDTH: 64,
   HEIGHT: 32,
   WIDTH_HALF: 32,
-  HEIGHT_HALF: 16
+  HEIGHT_HALF: 16,
+  HEIGHT_Z: 16 // Pixels to offset per elevation level
 };
 
 // Map Configuration

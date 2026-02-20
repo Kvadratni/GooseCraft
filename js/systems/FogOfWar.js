@@ -267,12 +267,12 @@ export default class FogOfWar {
       maxY: centerGrid.y + tileRange
     };
 
-    // Draw fog tiles (including out-of-bounds areas which get full black)
+    // Pass 1: Draw solid fog tiles (including out-of-bounds areas which get full black)
     for (let gridY = extendedBounds.minY; gridY < extendedBounds.maxY; gridY++) {
       for (let gridX = extendedBounds.minX; gridX < extendedBounds.maxX; gridX++) {
         // Check if this tile is outside the valid map bounds
         const isOutOfBounds = gridX < 0 || gridX >= (this.scene.mapWidth || MAP.GRID_WIDTH) ||
-                              gridY < 0 || gridY >= (this.scene.mapHeight || MAP.GRID_HEIGHT);
+          gridY < 0 || gridY >= (this.scene.mapHeight || MAP.GRID_HEIGHT);
 
         if (isOutOfBounds) {
           // Outside map bounds - solid black
@@ -281,13 +281,38 @@ export default class FogOfWar {
           const fogLevel = this.fogState[gridY][gridX];
 
           if (fogLevel === 0) {
-            // Unexplored - black overlay
+            // Unexplored - dark overlay (original value)
             this.drawFogTile(gridX, gridY, 0x000000, 0.9);
           } else if (fogLevel === 1) {
-            // Explored but not visible - dark translucent shadow
+            // Explored but not visible - dim shadow
             this.drawFogTile(gridX, gridY, 0x000000, 0.4);
           }
           // fogLevel === 2 means currently visible - no overlay
+        }
+      }
+    }
+
+    // Pass 2: Draw soft gradient ring at the fog → visible boundary
+    // This adds a subtle shadow on the VISIBLE tiles that border fogged tiles
+    const mapW = this.scene.mapWidth || MAP.GRID_WIDTH;
+    const mapH = this.scene.mapHeight || MAP.GRID_HEIGHT;
+    for (let gridY = extendedBounds.minY; gridY < extendedBounds.maxY; gridY++) {
+      for (let gridX = extendedBounds.minX; gridX < extendedBounds.maxX; gridX++) {
+        if (gridX < 0 || gridX >= mapW || gridY < 0 || gridY >= mapH) continue;
+        if (this.fogState[gridY][gridX] !== 2) continue; // Only check visible tiles
+
+        // Check if this visible tile borders any fogged tile
+        let bordersFog = false;
+        for (let dy = -1; dy <= 1 && !bordersFog; dy++) {
+          for (let dx = -1; dx <= 1 && !bordersFog; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = gridX + dx, ny = gridY + dy;
+            if (nx < 0 || nx >= mapW || ny < 0 || ny >= mapH) { bordersFog = true; break; }
+            if (this.fogState[ny][nx] < 2) bordersFog = true;
+          }
+        }
+        if (bordersFog) {
+          this.drawFogTile(gridX, gridY, 0x000000, 0.15);
         }
       }
     }
@@ -301,7 +326,8 @@ export default class FogOfWar {
 
     this.fogGraphics.fillStyle(color, alpha);
 
-    // Draw diamond shape for isometric tile
+    // Draw diamond shape for isometric tile — exact size, no padding.
+    // Original TILE dimensions tessellate perfectly with no gaps or overlap artifacts.
     const hw = TILE.WIDTH_HALF;
     const hh = TILE.HEIGHT_HALF;
 
