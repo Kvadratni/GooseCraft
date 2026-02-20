@@ -1,6 +1,6 @@
 // Building Manager - Building placement and construction
 
-import { COLORS, BUILDING, FACTIONS } from '../utils/Constants.js';
+import { COLORS, BUILDING, FACTIONS, UNIT_STATES } from '../utils/Constants.js';
 import { worldToGridInt } from '../utils/IsometricUtils.js';
 import Building from '../entities/Building.js';
 import Coop from '../buildings/Coop.js';
@@ -279,6 +279,17 @@ export default class BuildingManager {
     this.scene.buildings.push(building);
 
     console.log(`BuildingManager: Placed ${this.currentBuildingType} at (${snappedWorld.x}, ${snappedWorld.y})`);
+
+    // Auto-assign any selected builders to construct this building
+    if (this.scene.selectionManager) {
+      const selectedUnits = this.scene.selectionManager.getSelectedUnits();
+      selectedUnits.forEach(unit => {
+        if (typeof unit.buildConstruction === 'function') {
+          // It's a builder goose, command to build!
+          unit.buildConstruction(building);
+        }
+      });
+    }
 
     // Cancel placement mode
     this.cancelPlacement();

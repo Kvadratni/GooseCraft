@@ -692,7 +692,7 @@ export default class Unit extends Phaser.GameObjects.Container {
    * Resolve collisions with other units and buildings
    */
   resolveCollisions() {
-    const pushStrength = 0.2; // How strongly to push apart (0-1) - lowered to reduce jitter
+    const pushStrength = 0.15; // How strongly to push apart (0-1) - lowered to reduce jitter
 
     // Check collision with other units
     if (this.scene.units) {
@@ -736,10 +736,10 @@ export default class Unit extends Phaser.GameObjects.Container {
           if (totalResources > 0) return;
         }
 
-        // Use smaller collision radius (35% of building size) to allow units closer
-        const buildingRadius = building.size * 0.35;
+        // Use smaller collision radius (20% of building size) to allow units closer
+        const collisionRadius = building.size * 0.2;
         const dist = Phaser.Math.Distance.Between(this.x, this.y, building.x, building.y);
-        const minDist = this.collisionRadius + buildingRadius;
+        const minDist = this.collisionRadius + collisionRadius;
 
         if (dist < minDist && dist > 0) {
           // Push unit away from building (building doesn't move)
