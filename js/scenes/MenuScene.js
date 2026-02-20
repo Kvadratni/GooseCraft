@@ -484,7 +484,7 @@ export default class MenuScene extends Phaser.Scene {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
     const panelWidth = 400;
-    const panelHeight = 550;
+    const panelHeight = 620;
     const panelX = width / 2 - panelWidth / 2;
     const panelY = height / 2 - panelHeight / 2;
 
@@ -522,7 +522,8 @@ export default class MenuScene extends Phaser.Scene {
         lgBtn.setBackgroundColor('#333333');
         // Highlight active
         btn.setBackgroundColor('#4CAF50');
-        this.selectedMapConfig = { width: w, height: h };
+        this.selectedMapConfig.width = w;
+        this.selectedMapConfig.height = h;
       });
       return btn;
     };
@@ -533,6 +534,7 @@ export default class MenuScene extends Phaser.Scene {
 
     // Default select medium
     medBtn.setBackgroundColor('#4CAF50');
+    this.selectedMapConfig = { width: 250, height: 250, enemies: 1 };
 
     // Map Seed Field
     const seedLabel = this.add.text(panelX + panelWidth / 2, panelY + 360, 'Map Seed (Optional)', {
@@ -549,6 +551,24 @@ export default class MenuScene extends Phaser.Scene {
         this.selectedMapConfig.seed = input.trim();
         seedBtn.setText(this.selectedMapConfig.seed || "Random");
       }
+    });
+
+    // Enemy Count Field
+    const enemyLabel = this.add.text(panelX + panelWidth / 2, panelY + 460, 'Opponents', {
+      fontSize: '20px', fill: '#aaaaaa', fontFamily: 'Arial'
+    }).setOrigin(0.5).setDepth(2001).setVisible(false);
+
+    const enemyBtn = this.add.text(panelX + panelWidth / 2, panelY + 500, '1 AI Faction', {
+      fontSize: '20px', fill: '#ffffff', backgroundColor: '#F44336', padding: { x: 15, y: 10 }
+    }).setOrigin(0.5).setDepth(2001).setVisible(false).setInteractive({ useHandCursor: true });
+
+    enemyBtn.on('pointerdown', () => {
+      let count = this.selectedMapConfig.enemies + 1;
+      if (count > 3) count = 1;
+
+      this.selectedMapConfig.enemies = count;
+      const suffix = count === 1 ? 'Faction' : 'Factions';
+      enemyBtn.setText(`${count} AI ${suffix}`);
     });
 
     // Start Button
@@ -571,7 +591,7 @@ export default class MenuScene extends Phaser.Scene {
     });
 
     this.newGamePanelElements = [
-      bg, border, title, mapSizeLabel, smallBtn, medBtn, lgBtn, seedLabel, seedBtn, startBtn, cancelBtn
+      bg, border, title, mapSizeLabel, smallBtn, medBtn, lgBtn, seedLabel, seedBtn, enemyLabel, enemyBtn, startBtn, cancelBtn
     ];
   }
 }

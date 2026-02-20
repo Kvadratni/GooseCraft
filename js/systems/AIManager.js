@@ -12,9 +12,9 @@ import Guard from '../entities/Guard.js';
 import Scout from '../entities/Scout.js';
 
 export default class AIManager {
-  constructor(scene) {
+  constructor(scene, faction = FACTIONS.ENEMY_1) {
     this.scene = scene;
-    this.faction = FACTIONS.ENEMY_AI;
+    this.faction = faction;
 
     // AI state machine
     this.aiState = 'GATHERING'; // GATHERING, BUILDING, DEFENDING, ATTACKING
@@ -45,44 +45,40 @@ export default class AIManager {
   }
 
   /**
-   * Spawn AI base in opposite corner from player
+   * Spawn AI base at the designated world coordinate
    */
-  spawnAIBase() {
-    // AI base location - southeast corner (diagonally opposite player's northwest at 0.3, 0.3)
-    const aiBaseGridX = Math.floor((this.scene.mapWidth || MAP.GRID_WIDTH) * 0.7);
-    const aiBaseGridY = Math.floor((this.scene.mapHeight || MAP.GRID_HEIGHT) * 0.7);
-
-    // Find walkable tile
-    let spawnGridX = aiBaseGridX;
-    let spawnGridY = aiBaseGridY;
+  spawnAIBase(spawnGridX, spawnGridY) {
+    // Find walkable tile near the requested coordinate
+    let actualSpawnX = spawnGridX;
+    let actualSpawnY = spawnGridY;
     let foundWalkable = false;
 
     // Spiral search for walkable tile
     for (let radius = 0; radius < 10 && !foundWalkable; radius++) {
       for (let dx = -radius; dx <= radius && !foundWalkable; dx++) {
         for (let dy = -radius; dy <= radius && !foundWalkable; dy++) {
-          const testX = aiBaseGridX + dx;
-          const testY = aiBaseGridY + dy;
+          const testX = spawnGridX + dx;
+          const testY = spawnGridY + dy;
           if (this.scene.isometricMap.isWalkable(testX, testY)) {
-            spawnGridX = testX;
-            spawnGridY = testY;
+            actualSpawnX = testX;
+            actualSpawnY = testY;
             foundWalkable = true;
           }
         }
       }
     }
 
-    const baseWorld = this.scene.isometricMap.getWorldPosCenter(spawnGridX, spawnGridY);
+    const baseWorld = this.scene.isometricMap.getWorldPosCenter(actualSpawnX, actualSpawnY);
 
     // Create AI Coop
-    this.aiBase = new Coop(this.scene, baseWorld.x, baseWorld.y, FACTIONS.ENEMY_AI);
+    this.aiBase = new Coop(this.scene, baseWorld.x, baseWorld.y, this.faction);
     this.scene.buildings.push(this.aiBase);
     this.aiBuildings.push(this.aiBase);
 
-    console.log(`AIManager: Spawned AI base at grid (${spawnGridX}, ${spawnGridY})`);
+    console.log(`AIManager [${this.faction}]: Spawned AI base at grid (${actualSpawnX}, ${actualSpawnY})`);
 
     // Spawn starting workers
-    this.spawnStartingWorkers(spawnGridX, spawnGridY);
+    this.spawnStartingWorkers(actualSpawnX, actualSpawnY);
   }
 
   /**
@@ -103,7 +99,7 @@ export default class AIManager {
 
       if (this.scene.isometricMap.isWalkable(testX, testY)) {
         const spawnWorld = this.scene.isometricMap.getWorldPosCenter(testX, testY);
-        const worker = new Goose(this.scene, spawnWorld.x, spawnWorld.y, FACTIONS.ENEMY_AI);
+        const worker = new Goose(this.scene, spawnWorld.x, spawnWorld.y, this.faction);
         this.scene.units.push(worker);
         this.aiWorkers.push(worker);
         spawnedCount++;
@@ -294,12 +290,12 @@ export default class AIManager {
   }
 
   /**
-   * Command AI units to attack player base
+   * Command AI units to attack the nearest enemy base
    */
   commandAttack() {
-    // Find player base
-    const playerBase = this.findPlayerMainBase();
-    if (!playerBase) return;
+    // Find closest non-allied base
+    const targetBase = this.findNearestEnemyBase();
+    if (!targetBase) return;
 
     // Send all combat units toward player base
     this.aiCombatUnits.forEach(unit => {
@@ -311,9 +307,9 @@ export default class AIManager {
 
         // If not near player base, move there
         if (distance > 300) {
-          unit.moveTo(playerBase.x, playerBase.y);
+          unit.moveTo(targetBase.x, targetBase.y);
         } else {
-          // Near player base, look for enemies to attack
+          // Near target base, look for enemies to attack
           const enemy = unit.findNearestEnemy();
           if (enemy) {
             unit.engageTarget(enemy);
@@ -362,7 +358,7 @@ export default class AIManager {
     // Spawn worker directly (AI doesn't use production queue timing for simplicity)
     const spawnX = this.aiBase.x + 80;
     const spawnY = this.aiBase.y + 30;
-    const worker = new Goose(this.scene, spawnX, spawnY, FACTIONS.ENEMY_AI);
+    const worker = new Goose(this.scene, spawnX, spawnY, this.faction);
     this.scene.units.push(worker);
     this.aiWorkers.push(worker);
 
@@ -393,7 +389,7 @@ export default class AIManager {
     // Spawn unit
     const spawnX = this.aiBase.x + 80;
     const spawnY = this.aiBase.y + 30;
-    const unit = new UnitClass(this.scene, spawnX, spawnY, FACTIONS.ENEMY_AI);
+    const unit = new UnitClass(this.scene, spawnX, spawnY, this.faction);
     this.scene.units.push(unit);
     this.aiCombatUnits.push(unit);
 
@@ -421,15 +417,22 @@ export default class AIManager {
   }
 
   /**
-   * Find player main base
+   * Find nearest enemy main base
    */
-  findPlayerMainBase() {
+  findNearestEnemyBase() {
+    let nearestBase = null;
+    let nearestDist = Infinity;
+
     for (const building of this.scene.buildings) {
-      if (building.faction === FACTIONS.PLAYER && building.buildingType === 'COOP') {
-        return building;
+      if (building.faction !== this.faction && building.buildingType === 'COOP') {
+        const dist = Phaser.Math.Distance.Between(this.aiBase.x, this.aiBase.y, building.x, building.y);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestBase = building;
+        }
       }
     }
-    return null;
+    return nearestBase;
   }
 
   /**
@@ -440,9 +443,9 @@ export default class AIManager {
 
     const threatRadius = 500;
 
-    // Check for enemy units near base
+    // Check for any non-allied units near base
     for (const unit of this.scene.units) {
-      if (unit.faction === FACTIONS.PLAYER) {
+      if (unit.faction !== this.faction && unit.faction !== FACTIONS.NEUTRAL) {
         const dist = Phaser.Math.Distance.Between(unit.x, unit.y, this.aiBase.x, this.aiBase.y);
         if (dist < threatRadius) {
           return true;
@@ -457,8 +460,8 @@ export default class AIManager {
    * Update unit lists (remove destroyed units)
    */
   updateUnitLists() {
-    this.aiWorkers = this.aiWorkers.filter(u => u.active && u.faction === FACTIONS.ENEMY_AI && u.unitType === 'goose');
-    this.aiCombatUnits = this.aiCombatUnits.filter(u => u.active && u.faction === FACTIONS.ENEMY_AI && u.unitType !== 'goose');
+    this.aiWorkers = this.aiWorkers.filter(u => u.active && u.faction === this.faction && u.unitType === 'goose');
+    this.aiCombatUnits = this.aiCombatUnits.filter(u => u.active && u.faction === this.faction && u.unitType !== 'goose');
   }
 
   /**
@@ -569,7 +572,7 @@ export default class AIManager {
       this.scene,
       buildLocation.x,
       buildLocation.y,
-      FACTIONS.ENEMY_AI
+      this.faction
     );
 
     this.scene.buildings.push(building);

@@ -41,7 +41,14 @@ export default class GameScene extends Phaser.Scene {
     this.resourceManager = new ResourceManager(this);
     this.buildingUnlockManager = new BuildingUnlockManager(this);
     this.buildingManager = new BuildingManager(this);
-    this.aiManager = new AIManager(this);
+
+    // Setup AI Managers dynamically based on Game Setup
+    this.aiManagers = [];
+    const enemyCount = this.mapConfig.enemies || 1;
+    const enemyFactions = [FACTIONS.ENEMY_1, FACTIONS.ENEMY_2, FACTIONS.ENEMY_3];
+    for (let i = 0; i < enemyCount; i++) {
+      this.aiManagers.push(new AIManager(this, enemyFactions[i]));
+    }
     this.fogOfWar = new FogOfWar(this);
     this.soundManager = new SoundManager(this);
 
@@ -69,20 +76,20 @@ export default class GameScene extends Phaser.Scene {
     // Expose unit classes for debug console commands
     this.unitClasses = { Goose, Guard, Scout, Spy, Maverick };
 
-    // Store base spawn location
-    this.baseSpawnGrid = null;
+    // Calculate spawn coordinates for all active factions
+    this.calculateDynamicSpawns();
 
-    // Spawn starting base
-    this.spawnStartingBase();
+    // Spawn player starting base & units at Spawn 0
+    this.spawnStartingBase(this.spawnPoints[0]);
+    this.spawnStartingUnits(this.spawnPoints[0]);
 
-    // Spawn starting units (3 worker geese)
-    this.spawnStartingUnits();
-
-    // Spawn resource nodes
+    // Spawn resource nodes, avoiding all spawn points
     this.spawnResourceNodes();
 
-    // Spawn AI enemy base and units
-    this.aiManager.spawnAIBase();
+    // Spawn AI enemy bases and units at remaining Spawn Points
+    for (let i = 0; i < this.aiManagers.length; i++) {
+      this.aiManagers[i].spawnAIBase(this.spawnPoints[i + 1].x, this.spawnPoints[i + 1].y);
+    }
 
     // Fade in
     this.cameras.main.fadeIn(500, 0, 0, 0);
@@ -174,10 +181,8 @@ export default class GameScene extends Phaser.Scene {
       this.selectionManager.update();
     }
 
-    // Update AI manager
-    if (this.aiManager) {
-      this.aiManager.update(delta);
-    }
+    // Update AI managers
+    this.aiManagers.forEach(ai => ai.update(delta));
 
     // Update fog of war
     if (this.fogOfWar) {
@@ -248,11 +253,9 @@ export default class GameScene extends Phaser.Scene {
    * Spawn resource nodes on the map
    */
   spawnResourceNodes() {
-    const baseSpawnGridX = Math.floor(this.mapWidth * 0.3);
-    const baseSpawnGridY = Math.floor(this.mapHeight * 0.3);
 
     // Spawn forest groves first (clusters of trees)
-    this.spawnForestGroves(baseSpawnGridX, baseSpawnGridY);
+    this.spawnForestGroves();
 
     // Configuration for other resources
     const resourceConfig = {
@@ -285,21 +288,15 @@ export default class GameScene extends Phaser.Scene {
         const gridX = Math.floor(Math.random() * this.mapWidth);
         const gridY = Math.floor(Math.random() * this.mapHeight);
 
-        // Check distance from player base
-        const distFromBase = Math.sqrt(
-          Math.pow(gridX - baseSpawnGridX, 2) +
-          Math.pow(gridY - baseSpawnGridY, 2)
-        );
-        if (distFromBase < 6) continue;
-
-        // Check distance from AI base (spawns at ~0.7, 0.7 of map)
-        const aiBaseGridX = Math.floor(this.mapWidth * 0.7);
-        const aiBaseGridY = Math.floor(this.mapHeight * 0.7);
-        const distFromAIBase = Math.sqrt(
-          Math.pow(gridX - aiBaseGridX, 2) +
-          Math.pow(gridY - aiBaseGridY, 2)
-        );
-        if (distFromAIBase < 6) continue;
+        let tooCloseToSpawn = false;
+        for (const point of this.spawnPoints) {
+          const dist = Math.sqrt(Math.pow(gridX - point.x, 2) + Math.pow(gridY - point.y, 2));
+          if (dist < 8) {
+            tooCloseToSpawn = true;
+            break;
+          }
+        }
+        if (tooCloseToSpawn) continue;
 
         const tile = this.isometricMap.getTile(gridX, gridY);
         if (!tile) continue;
@@ -339,7 +336,7 @@ export default class GameScene extends Phaser.Scene {
   /**
    * Spawn forest groves - clusters of trees spread across the map
    */
-  spawnForestGroves(baseSpawnGridX, baseSpawnGridY) {
+  spawnForestGroves() {
     const numGroves = 80;  // Number of forest groves
     const minTreesPerGrove = 20;
     const maxTreesPerGrove = 50;
@@ -353,21 +350,15 @@ export default class GameScene extends Phaser.Scene {
       const groveCenterX = Math.floor(Math.random() * this.mapWidth);
       const groveCenterY = Math.floor(Math.random() * this.mapHeight);
 
-      // Skip if too close to player base
-      const distFromBase = Math.sqrt(
-        Math.pow(groveCenterX - baseSpawnGridX, 2) +
-        Math.pow(groveCenterY - baseSpawnGridY, 2)
-      );
-      if (distFromBase < 10) continue;
-
-      // Skip if too close to AI base
-      const aiBaseGridX = Math.floor(this.mapWidth * 0.7);
-      const aiBaseGridY = Math.floor(this.mapHeight * 0.7);
-      const distFromAIBase = Math.sqrt(
-        Math.pow(groveCenterX - aiBaseGridX, 2) +
-        Math.pow(groveCenterY - aiBaseGridY, 2)
-      );
-      if (distFromAIBase < 10) continue;
+      let tooCloseToSpawn = false;
+      for (const point of this.spawnPoints) {
+        const dist = Math.sqrt(Math.pow(groveCenterX - point.x, 2) + Math.pow(groveCenterY - point.y, 2));
+        if (dist < 12) {
+          tooCloseToSpawn = true;
+          break;
+        }
+      }
+      if (tooCloseToSpawn) continue;
 
       // Determine number of trees in this grove
       const treesInGrove = minTreesPerGrove + Math.floor(Math.random() * (maxTreesPerGrove - minTreesPerGrove));
@@ -407,24 +398,36 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Determine exact grid coordinates for however many factions are actively participating
+   */
+  calculateDynamicSpawns() {
+    const w = this.mapWidth;
+    const h = this.mapHeight;
+    const potentialSpawns = [
+      { x: Math.floor(w * 0.15), y: Math.floor(h * 0.15) }, // Player (Top-left)
+      { x: Math.floor(w * 0.85), y: Math.floor(h * 0.85) }, // AI 1 (Bottom-right)
+      { x: Math.floor(w * 0.85), y: Math.floor(h * 0.15) }, // AI 2 (Top-right)
+      { x: Math.floor(w * 0.15), y: Math.floor(h * 0.85) }  // AI 3 (Bottom-left)
+    ];
+
+    const enemyCount = this.mapConfig.enemies || 1;
+    this.spawnPoints = potentialSpawns.slice(0, enemyCount + 1);
+  }
+
+  /**
    * Spawn starting base (Coop)
    */
-  spawnStartingBase() {
-    // Base spawn area - southwest quadrant, away from center
-    const baseAreaX = Math.floor(this.mapWidth * 0.3); // 30% from left
-    const baseAreaY = Math.floor(this.mapHeight * 0.3); // 30% from top
-
-    // Find a walkable tile in the base area
-    let spawnGridX = baseAreaX;
-    let spawnGridY = baseAreaY;
+  spawnStartingBase(spawnZone) {
+    let spawnGridX = spawnZone.x;
+    let spawnGridY = spawnZone.y;
 
     // Search in a spiral pattern from base area for walkable tile
     let found = false;
     for (let radius = 0; radius < 15 && !found; radius++) {
       for (let dx = -radius; dx <= radius && !found; dx++) {
         for (let dy = -radius; dy <= radius && !found; dy++) {
-          const testX = baseAreaX + dx;
-          const testY = baseAreaY + dy;
+          const testX = spawnZone.x + dx;
+          const testY = spawnZone.y + dy;
 
           if (this.isometricMap.isWalkable(testX, testY)) {
             spawnGridX = testX;
@@ -454,7 +457,7 @@ export default class GameScene extends Phaser.Scene {
   /**
    * Spawn starting units
    */
-  spawnStartingUnits() {
+  spawnStartingUnits(spawnZone) {
     if (!this.baseSpawnGrid) {
       console.error('GameScene: No base spawn location found!');
       return;

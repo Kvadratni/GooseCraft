@@ -81,16 +81,20 @@ export default class IsometricMap {
    * Generate terrain type for a tile using Procedural Simplex Noise.
    */
   generateTerrainType(x, y) {
-    // 1) Force flatten the two standard base regions to guarantee playable starts
-    const baseAreaX = this.gridWidth * 0.3;
-    const baseAreaY = this.gridHeight * 0.3;
-    const distFromBase = Math.sqrt(Math.pow(x - baseAreaX, 2) + Math.pow(y - baseAreaY, 2));
-    if (distFromBase < 12) return 'grass';
+    // 1) Force flatten 4 quadrants to guarantee playable starts for up to 4 players
+    const w = this.gridWidth;
+    const h = this.gridHeight;
+    const corners = [
+      { x: w * 0.15, y: h * 0.15 }, // Top-left
+      { x: w * 0.85, y: h * 0.85 }, // Bottom-right
+      { x: w * 0.85, y: h * 0.15 }, // Top-right
+      { x: w * 0.15, y: h * 0.85 }  // Bottom-left
+    ];
 
-    const aiBaseAreaX = this.gridWidth * 0.7;
-    const aiBaseAreaY = this.gridHeight * 0.7;
-    const distFromAIBase = Math.sqrt(Math.pow(x - aiBaseAreaX, 2) + Math.pow(y - aiBaseAreaY, 2));
-    if (distFromAIBase < 12) return 'grass';
+    for (const corner of corners) {
+      const dist = Math.sqrt(Math.pow(x - corner.x, 2) + Math.pow(y - corner.y, 2));
+      if (dist < 12) return 'grass';
+    }
 
     // Scale factors tuned to produce large coherent continents/biomes
     const macroScale = 0.02;
