@@ -275,6 +275,14 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   showNewGameSetup() {
+    // Always reset config to fresh defaults when panel opens
+    this.selectedMapConfig = { width: 250, height: 250, enemies: 1 };
+
+    // Reset the enemy button label
+    if (this.enemyBtn) {
+      this.enemyBtn.setText('1 AI Faction');
+    }
+
     if (this.newGamePanelElements) {
       this.newGamePanelElements.forEach(element => element.setVisible(true));
     }
@@ -488,10 +496,11 @@ export default class MenuScene extends Phaser.Scene {
     const panelX = width / 2 - panelWidth / 2;
     const panelY = height / 2 - panelHeight / 2;
 
-    // Panel background
+    // Panel background - interactive to block clicks passing through to underlying elements
     const bg = this.add.rectangle(panelX + panelWidth / 2, panelY + panelHeight / 2, panelWidth, panelHeight, 0x1a1a1a, 0.95);
     bg.setDepth(2000);
     bg.setVisible(false);
+    bg.setInteractive(); // Swallows all pointer events so menu buttons behind don't fire
 
     // Panel border
     const border = this.add.rectangle(panelX + panelWidth / 2, panelY + panelHeight / 2, panelWidth, panelHeight);
@@ -532,9 +541,8 @@ export default class MenuScene extends Phaser.Scene {
     const medBtn = createSizeBtn(0, 230, 'Medium (250x250)', 250, 250);
     const lgBtn = createSizeBtn(0, 300, 'Large (400x400)', 400, 400);
 
-    // Default select medium
+    // Default select medium (selectedMapConfig is reset when panel opens, not here)
     medBtn.setBackgroundColor('#4CAF50');
-    this.selectedMapConfig = { width: 250, height: 250, enemies: 1 };
 
     // Map Seed Field
     const seedLabel = this.add.text(panelX + panelWidth / 2, panelY + 360, 'Map Seed (Optional)', {
@@ -563,13 +571,17 @@ export default class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(2001).setVisible(false).setInteractive({ useHandCursor: true });
 
     enemyBtn.on('pointerdown', () => {
-      let count = this.selectedMapConfig.enemies + 1;
+      // Guard: make sure enemies is a real number before incrementing
+      let count = (this.selectedMapConfig.enemies || 1) + 1;
       if (count > 3) count = 1;
 
       this.selectedMapConfig.enemies = count;
       const suffix = count === 1 ? 'Faction' : 'Factions';
       enemyBtn.setText(`${count} AI ${suffix}`);
     });
+
+    // Store enemyBtn reference so showNewGameSetup can reset its label
+    this.enemyBtn = enemyBtn;
 
     // Start Button
     const startBtn = this.add.text(panelX + panelWidth / 2 - 80, panelY + panelHeight - 60, 'START', {
