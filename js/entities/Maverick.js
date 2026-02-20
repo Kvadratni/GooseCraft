@@ -1,7 +1,8 @@
 // Maverick - Fast aerial combat unit with ranged attacks
 
 import CombatUnit from './CombatUnit.js';
-import { UNIT, UNIT_STATS } from '../utils/Constants.js';
+import { UNIT, UNIT_STATES, UNIT_STATS } from '../utils/Constants.js';
+import { updateAerialAnimation } from '../systems/UnitAnimator.js';
 
 export default class Maverick extends CombatUnit {
   constructor(scene, x, y, faction) {
@@ -27,5 +28,16 @@ export default class Maverick extends CombatUnit {
     this.projectileType = 'rock'; // Drops rocks on targets
 
     console.log('Maverick unit created - Fast aerial striker');
+  }
+
+  /** Override idle with smooth hover float */
+  updateIdle(delta) {
+    this.animTime += delta / 1000;
+    updateAerialAnimation(this.sprite, this.animTime, false);
+  }
+
+  /** Override moving animation with banking hover float */
+  applyMovingAnimation(delta) {
+    updateAerialAnimation(this.sprite, this.animTime, true);
   }
 }

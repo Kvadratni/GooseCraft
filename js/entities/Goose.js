@@ -3,6 +3,7 @@
 import CombatUnit from './CombatUnit.js';
 import { UNIT, UNIT_STATES, BUILDING_STATES, FACTIONS } from '../utils/Constants.js';
 import { worldToGridInt } from '../utils/IsometricUtils.js';
+import { updateGatherAnimation } from '../systems/UnitAnimator.js';
 
 export default class Goose extends CombatUnit {
   constructor(scene, x, y, faction) {
@@ -253,6 +254,10 @@ export default class Goose extends CombatUnit {
     if (distance < gatherDistance) {
       // At the resource, start gathering
       this.gatherTimer += delta;
+
+      // Animate: peck-bob while gathering
+      this.animTime += delta / 1000;
+      updateGatherAnimation(this.sprite, this.animTime);
 
       if (this.gatherTimer >= this.gatherDuration) {
         // Gather complete
@@ -658,8 +663,8 @@ export default class Goose extends CombatUnit {
       (node) => {
         // Filter: only active nodes of matching type with resources available
         return node.active &&
-               node.getResourceType() === resourceType &&
-               node.hasResources();
+          node.getResourceType() === resourceType &&
+          node.hasResources();
       }
     );
 
@@ -741,6 +746,10 @@ export default class Goose extends CombatUnit {
     const buildRate = 0.1; // % per second
     const progress = (buildRate * delta) / 1000 * 100;
     this.targetBuilding.addConstructionProgress(progress);
+
+    // Animate: hammer-bob while building
+    this.animTime += delta / 1000;
+    updateGatherAnimation(this.sprite, this.animTime);
   }
 
   /**

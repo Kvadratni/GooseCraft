@@ -2,6 +2,7 @@
 
 import { UNIT_STATES, DEPTH, COLORS, FACTIONS, FACTION_COLORS } from '../utils/Constants.js';
 import { worldToGridInt, calculateDepth } from '../utils/IsometricUtils.js';
+import { updateIdleAnimation, updateWalkAnimation, resetAnimation } from '../systems/UnitAnimator.js';
 
 export default class Unit extends Phaser.GameObjects.Container {
   constructor(scene, x, y, config, faction = FACTIONS.PLAYER) {
@@ -48,9 +49,13 @@ export default class Unit extends Phaser.GameObjects.Container {
     this.collisionRadius = this.size / 2;
     this.isAerial = false; // Override in aerial units (Maverick)
 
+    // Animation time accumulator (seconds)
+    this.animTime = 0;
+
     // Create sprite
     this.sprite = scene.add.sprite(0, 0, this.spriteKey);
     this.sprite.setDisplaySize(this.size, this.size);
+    this.sprite.baseScale = this.sprite.scaleX; // capture the native scaling factor
     this.add(this.sprite);
 
     // Apply faction tint/glow effect that follows the sprite shape
@@ -217,7 +222,8 @@ export default class Unit extends Phaser.GameObjects.Container {
    * Update idle state
    */
   updateIdle(delta) {
-    // Do nothing, just wait for commands
+    this.animTime += delta / 1000;
+    updateIdleAnimation(this.sprite, this.animTime);
   }
 
   /**
@@ -390,6 +396,10 @@ export default class Unit extends Phaser.GameObjects.Container {
       } else {
         this.sprite.setFlipX(false);
       }
+
+      // Walking wobble animation
+      this.animTime += delta / 1000;
+      this.applyMovingAnimation(delta);
     }
   }
 
@@ -398,6 +408,13 @@ export default class Unit extends Phaser.GameObjects.Container {
    */
   updateGathering(delta) {
     // Gathering behavior is handled by Goose subclass
+  }
+
+  /**
+   * Apply movement animation - override in subclasses for unit-type-specific motion.
+   */
+  applyMovingAnimation(delta) {
+    updateWalkAnimation(this.sprite, this.animTime, this.speed);
   }
 
   /**
@@ -417,6 +434,11 @@ export default class Unit extends Phaser.GameObjects.Container {
           ` (path length: ${this.currentPath?.length}, index: ${this.currentPathIndex})` : '';
         console.log(`Unit ${this.unitType}: ${this.state} -> ${newState}${debugInfo}`);
       }
+
+      // Reset sprite transforms to neutral on every state transition
+      resetAnimation(this.sprite);
+      this.animTime = 0;
+
       this.state = newState;
 
       // State entry actions

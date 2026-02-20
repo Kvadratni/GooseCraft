@@ -2,6 +2,7 @@
 
 import Unit from './Unit.js';
 import { UNIT_STATES, FACTIONS } from '../utils/Constants.js';
+import { playAttackLunge, updateIdleAnimation } from '../systems/UnitAnimator.js';
 
 export default class CombatUnit extends Unit {
   constructor(scene, x, y, config, faction) {
@@ -87,6 +88,10 @@ export default class CombatUnit extends Unit {
       // Attack if cooldown ready
       if (this.canAttack()) {
         this.attackTarget(this.targetEnemy);
+      } else {
+        // Idle bob while waiting for cooldown
+        this.animTime += delta / 1000;
+        updateIdleAnimation(this.sprite, this.animTime);
       }
     } else {
       // Move toward target (pursue)
@@ -133,6 +138,9 @@ export default class CombatUnit extends Unit {
       // Melee - deal damage immediately
       this.dealDamageToTarget(target);
     }
+
+    // Visual: lunge animation on the attacker's sprite
+    playAttackLunge(this.sprite, this.scene, this.sprite.flipX);
   }
 
   /**
