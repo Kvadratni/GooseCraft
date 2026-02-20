@@ -20,7 +20,7 @@ export default class LoadingScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor('#6BA965');
 
         // Loading text
-        this.loadingText = this.add.text(width / 2, height / 2 + 50, 'Generating World...', {
+        this.loadingText = this.add.text(width / 2, height / 2 + 120, 'Generating World...', {
             fontSize: '32px',
             fill: '#FFFFFF',
             fontFamily: 'Arial',
@@ -44,8 +44,8 @@ export default class LoadingScene extends Phaser.Scene {
         // Bouncing/Walking Goose Sprite
         // Assuming 'builder' sprite is loaded from SplashScene
         if (this.textures.exists('builder')) {
-            this.gooseSprite = this.add.sprite(width / 2, height / 2 - 50, 'builder');
-            this.gooseSprite.setScale(0.5); // Keep it normal size
+            this.gooseSprite = this.add.sprite(width / 2, height / 2 - 80, 'builder');
+            this.gooseSprite.setScale(0.4); // Keep it normal size
 
             // Simple procedural waddle animation using a tween
             this.tweens.add({
