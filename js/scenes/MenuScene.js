@@ -26,7 +26,7 @@ export default class MenuScene extends Phaser.Scene {
       width / 2,
       height / 2 + 50,
       'New Game',
-      () => this.startNewGame()
+      () => this.showNewGameSetup()
     );
 
     // Load Game Button
@@ -57,6 +57,11 @@ export default class MenuScene extends Phaser.Scene {
 
     // Create settings panel (hidden by default)
     this.createSettingsPanel();
+
+    // Create new game setup panel (hidden by default)
+    this.createNewGamePanel();
+
+    this.selectedMapConfig = { width: 250, height: 250 }; // Default Medium
 
     console.log('MenuScene: Ready');
   }
@@ -178,8 +183,8 @@ export default class MenuScene extends Phaser.Scene {
     return container;
   }
 
-  startNewGame() {
-    console.log('MenuScene: Starting new game...');
+  startNewGame(config = {}) {
+    console.log('MenuScene: Starting new game with config:', config);
 
     // Stop menu music before transitioning
     if (this.soundManager && this.soundManager.currentMusic) {
@@ -198,7 +203,7 @@ export default class MenuScene extends Phaser.Scene {
 
       // Stop this scene and start GameScene
       this.scene.stop('MenuScene');
-      this.scene.start('GameScene');
+      this.scene.start('GameScene', config);
       // Also start UIScene in parallel
       this.scene.launch('UIScene');
     });
@@ -268,6 +273,18 @@ export default class MenuScene extends Phaser.Scene {
   hideSettings() {
     if (this.settingsPanelElements) {
       this.settingsPanelElements.forEach(element => element.setVisible(false));
+    }
+  }
+
+  showNewGameSetup() {
+    if (this.newGamePanelElements) {
+      this.newGamePanelElements.forEach(element => element.setVisible(true));
+    }
+  }
+
+  hideNewGameSetup() {
+    if (this.newGamePanelElements) {
+      this.newGamePanelElements.forEach(element => element.setVisible(false));
     }
   }
 
@@ -463,5 +480,83 @@ export default class MenuScene extends Phaser.Scene {
     });
 
     console.log('MenuScene: Settings panel created');
+  }
+
+  createNewGamePanel() {
+    const width = this.cameras.main.width;
+    const height = this.cameras.main.height;
+    const panelWidth = 500;
+    const panelHeight = 400;
+    const panelX = width / 2 - panelWidth / 2;
+    const panelY = height / 2 - panelHeight / 2;
+
+    // Panel background
+    const bg = this.add.rectangle(panelX + panelWidth / 2, panelY + panelHeight / 2, panelWidth, panelHeight, 0x1a1a1a, 0.95);
+    bg.setDepth(2000);
+    bg.setVisible(false);
+
+    // Panel border
+    const border = this.add.rectangle(panelX + panelWidth / 2, panelY + panelHeight / 2, panelWidth, panelHeight);
+    border.setStrokeStyle(2, 0x4CAF50);
+    border.setDepth(2000);
+    border.setVisible(false);
+
+    // Title
+    const title = this.add.text(panelX + panelWidth / 2, panelY + 40, 'Game Setup', {
+      fontSize: '32px', fill: '#ffffff', fontFamily: 'Arial', fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(2001).setVisible(false);
+
+    // Map Size Label
+    const mapSizeLabel = this.add.text(panelX + panelWidth / 2, panelY + 100, 'Map Size', {
+      fontSize: '24px', fill: '#ffffff', fontFamily: 'Arial'
+    }).setOrigin(0.5).setDepth(2001).setVisible(false);
+
+    // Size Buttons
+    const createSizeBtn = (xOffset, yOffset, label, w, h) => {
+      const btn = this.add.text(panelX + panelWidth / 2 + xOffset, panelY + yOffset, label, {
+        fontSize: '20px', fill: '#ffffff', backgroundColor: '#333333', padding: { x: 15, y: 10 }
+      }).setOrigin(0.5).setDepth(2001).setVisible(false).setInteractive({ useHandCursor: true });
+
+      btn.on('pointerdown', () => {
+        // Reset all buttons visual
+        smallBtn.setBackgroundColor('#333333');
+        medBtn.setBackgroundColor('#333333');
+        lgBtn.setBackgroundColor('#333333');
+        // Highlight active
+        btn.setBackgroundColor('#4CAF50');
+        this.selectedMapConfig = { width: w, height: h };
+      });
+      return btn;
+    };
+
+    const smallBtn = createSizeBtn(-120, 150, 'Small (100x100)', 100, 100);
+    const medBtn = createSizeBtn(0, 150, 'Medium (250x250)', 250, 250);
+    const lgBtn = createSizeBtn(130, 150, 'Large (400x400)', 400, 400);
+
+    // Default select medium
+    medBtn.setBackgroundColor('#4CAF50');
+
+    // Start Button
+    const startBtn = this.add.text(panelX + panelWidth / 2 - 80, panelY + panelHeight - 50, 'START', {
+      fontSize: '24px', fill: '#ffffff', backgroundColor: '#4CAF50', padding: { x: 30, y: 15 }
+    }).setOrigin(0.5).setDepth(2001).setVisible(false).setInteractive({ useHandCursor: true });
+
+    startBtn.on('pointerdown', () => {
+      this.hideNewGameSetup();
+      this.startNewGame(this.selectedMapConfig);
+    });
+
+    // Cancel Button
+    const cancelBtn = this.add.text(panelX + panelWidth / 2 + 80, panelY + panelHeight - 50, 'CANCEL', {
+      fontSize: '24px', fill: '#ffffff', backgroundColor: '#777777', padding: { x: 20, y: 15 }
+    }).setOrigin(0.5).setDepth(2001).setVisible(false).setInteractive({ useHandCursor: true });
+
+    cancelBtn.on('pointerdown', () => {
+      this.hideNewGameSetup();
+    });
+
+    this.newGamePanelElements = [
+      bg, border, title, mapSizeLabel, smallBtn, medBtn, lgBtn, startBtn, cancelBtn
+    ];
   }
 }

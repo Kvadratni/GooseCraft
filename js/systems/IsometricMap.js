@@ -6,8 +6,8 @@ import { gridToWorld, worldToGridInt, isWithinBounds } from '../utils/IsometricU
 export default class IsometricMap {
   constructor(scene) {
     this.scene = scene;
-    this.gridWidth = MAP.GRID_WIDTH;
-    this.gridHeight = MAP.GRID_HEIGHT;
+    this.gridWidth = scene.mapWidth || MAP.GRID_WIDTH;
+    this.gridHeight = scene.mapHeight || MAP.GRID_HEIGHT;
 
     // 2D array for tile data [x][y]
     this.tiles = [];

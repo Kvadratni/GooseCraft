@@ -24,6 +24,13 @@ export default class GameScene extends Phaser.Scene {
     super({ key: 'GameScene' });
   }
 
+  init(data) {
+    this.mapConfig = data || {};
+    this.mapWidth = this.mapConfig.width || this.mapWidth;
+    this.mapHeight = this.mapConfig.height || this.mapHeight;
+    console.log(`GameScene: Map dimensions initialized to ${this.mapWidth}x${this.mapHeight}`);
+  }
+
   create() {
     console.log('GameScene: Initializing...');
 
@@ -236,8 +243,8 @@ export default class GameScene extends Phaser.Scene {
    * Spawn resource nodes on the map
    */
   spawnResourceNodes() {
-    const baseSpawnGridX = Math.floor(MAP.GRID_WIDTH * 0.3);
-    const baseSpawnGridY = Math.floor(MAP.GRID_HEIGHT * 0.3);
+    const baseSpawnGridX = Math.floor(this.mapWidth * 0.3);
+    const baseSpawnGridY = Math.floor(this.mapHeight * 0.3);
 
     // Spawn forest groves first (clusters of trees)
     this.spawnForestGroves(baseSpawnGridX, baseSpawnGridY);
@@ -270,8 +277,8 @@ export default class GameScene extends Phaser.Scene {
       while (spawned < config.count && attempts < maxAttempts) {
         attempts++;
 
-        const gridX = Math.floor(Math.random() * MAP.GRID_WIDTH);
-        const gridY = Math.floor(Math.random() * MAP.GRID_HEIGHT);
+        const gridX = Math.floor(Math.random() * this.mapWidth);
+        const gridY = Math.floor(Math.random() * this.mapHeight);
 
         // Check distance from player base
         const distFromBase = Math.sqrt(
@@ -281,8 +288,8 @@ export default class GameScene extends Phaser.Scene {
         if (distFromBase < 6) continue;
 
         // Check distance from AI base (spawns at ~0.7, 0.7 of map)
-        const aiBaseGridX = Math.floor(MAP.GRID_WIDTH * 0.7);
-        const aiBaseGridY = Math.floor(MAP.GRID_HEIGHT * 0.7);
+        const aiBaseGridX = Math.floor(this.mapWidth * 0.7);
+        const aiBaseGridY = Math.floor(this.mapHeight * 0.7);
         const distFromAIBase = Math.sqrt(
           Math.pow(gridX - aiBaseGridX, 2) +
           Math.pow(gridY - aiBaseGridY, 2)
@@ -338,8 +345,8 @@ export default class GameScene extends Phaser.Scene {
 
     for (let grove = 0; grove < numGroves; grove++) {
       // Pick random grove center
-      const groveCenterX = Math.floor(Math.random() * MAP.GRID_WIDTH);
-      const groveCenterY = Math.floor(Math.random() * MAP.GRID_HEIGHT);
+      const groveCenterX = Math.floor(Math.random() * this.mapWidth);
+      const groveCenterY = Math.floor(Math.random() * this.mapHeight);
 
       // Skip if too close to player base
       const distFromBase = Math.sqrt(
@@ -349,8 +356,8 @@ export default class GameScene extends Phaser.Scene {
       if (distFromBase < 10) continue;
 
       // Skip if too close to AI base
-      const aiBaseGridX = Math.floor(MAP.GRID_WIDTH * 0.7);
-      const aiBaseGridY = Math.floor(MAP.GRID_HEIGHT * 0.7);
+      const aiBaseGridX = Math.floor(this.mapWidth * 0.7);
+      const aiBaseGridY = Math.floor(this.mapHeight * 0.7);
       const distFromAIBase = Math.sqrt(
         Math.pow(groveCenterX - aiBaseGridX, 2) +
         Math.pow(groveCenterY - aiBaseGridY, 2)
@@ -369,7 +376,7 @@ export default class GameScene extends Phaser.Scene {
         const gridY = Math.floor(groveCenterY + Math.sin(angle) * distance);
 
         // Validate position
-        if (gridX < 0 || gridX >= MAP.GRID_WIDTH || gridY < 0 || gridY >= MAP.GRID_HEIGHT) continue;
+        if (gridX < 0 || gridX >= this.mapWidth || gridY < 0 || gridY >= this.mapHeight) continue;
 
         const tile = this.isometricMap.getTile(gridX, gridY);
         if (!tile || !validTerrains.includes(tile.terrainType)) continue;
@@ -399,8 +406,8 @@ export default class GameScene extends Phaser.Scene {
    */
   spawnStartingBase() {
     // Base spawn area - southwest quadrant, away from center
-    const baseAreaX = Math.floor(MAP.GRID_WIDTH * 0.3); // 30% from left
-    const baseAreaY = Math.floor(MAP.GRID_HEIGHT * 0.3); // 30% from top
+    const baseAreaX = Math.floor(this.mapWidth * 0.3); // 30% from left
+    const baseAreaY = Math.floor(this.mapHeight * 0.3); // 30% from top
 
     // Find a walkable tile in the base area
     let spawnGridX = baseAreaX;
@@ -503,8 +510,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Calculate isometric world bounds
     // Isometric map forms a diamond shape
-    const mapWidthInWorld = MAP.GRID_WIDTH * TILE.WIDTH_HALF;
-    const mapHeightInWorld = MAP.GRID_HEIGHT * TILE.HEIGHT_HALF;
+    const mapWidthInWorld = this.mapWidth * TILE.WIDTH_HALF;
+    const mapHeightInWorld = this.mapHeight * TILE.HEIGHT_HALF;
 
     // Total diamond dimensions
     const diamondWidth = mapWidthInWorld * 2; // Left to right extent
