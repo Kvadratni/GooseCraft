@@ -49,8 +49,8 @@ export default class AIManager {
    */
   spawnAIBase() {
     // AI base location - southeast corner (diagonally opposite player's northwest at 0.3, 0.3)
-    const aiBaseGridX = Math.floor(this.scene.mapWidth || MAP.GRID_WIDTH * 0.7);
-    const aiBaseGridY = Math.floor(this.scene.mapHeight || MAP.GRID_HEIGHT * 0.7);
+    const aiBaseGridX = Math.floor((this.scene.mapWidth || MAP.GRID_WIDTH) * 0.7);
+    const aiBaseGridY = Math.floor((this.scene.mapHeight || MAP.GRID_HEIGHT) * 0.7);
 
     // Find walkable tile
     let spawnGridX = aiBaseGridX;
